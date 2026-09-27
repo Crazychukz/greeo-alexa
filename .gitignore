@@ -1,0 +1,16 @@
+.env
+.venv/
+backend/.venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+staticfiles/
+docs/walkthroughs/
+AGENT_PROMPTS.md
+.DS_Store
+.idea/
+celerybeat-schedule

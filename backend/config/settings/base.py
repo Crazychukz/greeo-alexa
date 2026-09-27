@@ -1,0 +1,167 @@
+"""Settings shared by all Greeo environments.
+
+Values enter the application through environment variables so deployments do
+not require code changes. Defaults only support the local Docker workflow.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from urllib.parse import unquote, urlparse
+
+from celery.schedules import crontab
+from django.core.exceptions import ImproperlyConfigured
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+
+
+def env(name: str, default: str | None = None) -> str:
+    """Read one required environment value, optionally with a local default."""
+    value = os.getenv(name, default)
+    if value is None:
+        raise ImproperlyConfigured(f"Set the {name} environment variable.")
+    return value
+
+
+def env_bool(name: str, default: bool) -> bool:
+    """Parse a boolean environment value strictly to catch configuration typos."""
+    value = env(name, str(default)).lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ImproperlyConfigured(f"{name} must be a boolean value.")
+
+
+def env_int(name: str, default: int) -> int:
+    """Read an integer setting and fail clearly on malformed configuration."""
+    try:
+        return int(env(name, str(default)))
+    except ValueError as error:
+        raise ImproperlyConfigured(f"{name} must be an integer.") from error
+
+
+def database_from_url(url: str) -> dict[str, str]:
+    """Convert supported database URLs into Django's database configuration."""
+    parsed = urlparse(url)
+    if parsed.scheme in {"postgres", "postgresql"}:
+        return {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": parsed.path.removeprefix("/"),
+            "USER": unquote(parsed.username or ""),
+            "PASSWORD": unquote(parsed.password or ""),
+            "HOST": parsed.hostname or "",
+            "PORT": str(parsed.port or "5432"),
+        }
+    if parsed.scheme == "sqlite":
+        name = unquote(parsed.path)
+        return {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": ":memory:" if name in {"", "/:memory:"} else name,
+        }
+    raise ImproperlyConfigured("DATABASE_URL must use postgresql:// or sqlite://.")
+
+
+SECRET_KEY = env("DJANGO_SECRET_KEY", "change-me-for-any-non-local-environment")
+DEBUG = env_bool("DJANGO_DEBUG", True)
+ALLOWED_HOSTS = [
+    host.strip() for host in env("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+]
+
+INSTALLED_APPS = [
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "django.contrib.postgres",
+    "rest_framework",
+    "apps.core",
+    "apps.news",
+    "apps.stories",
+    "apps.wisdom",
+    "apps.memory",
+    "apps.llm",
+    "apps.mcp_server",
+    "apps.simulator",
+]
+
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
+ROOT_URLCONF = "config.urls"
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ]
+        },
+    }
+]
+WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
+
+DATABASES = {"default": database_from_url(env("DATABASE_URL", "sqlite:///:memory:"))}
+
+REDIS_URL = env("REDIS_URL", "redis://localhost:6379/0")
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "greeo-local-cache",
+    }
+}
+
+AUTH_PASSWORD_VALIDATORS: list[dict[str, str]] = []
+LANGUAGE_CODE = "en-gb"
+TIME_ZONE = "Africa/Lagos"
+USE_I18N = True
+USE_TZ = True
+STATIC_URL = "static/"
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", False)
+CELERY_TASK_EAGER_PROPAGATES = env_bool("CELERY_TASK_EAGER_PROPAGATES", True)
+CELERY_BEAT_SCHEDULE: dict[str, dict[str, object]] = {
+    "news-poll-due-feeds": {
+        "task": "news.poll_due_feeds",
+        "schedule": crontab(minute="*/30"),
+    }
+}
+ALLOW_SYNTHETIC = env_bool("ALLOW_SYNTHETIC", DEBUG)
+
+# RSS ingestion performs only permitted feed requests. No article pages are fetched.
+GREEO_CONTACT_EMAIL = env("GREEO_CONTACT_EMAIL", "local@example.invalid")
+NEWS_HTTP_TIMEOUT_SECONDS = env_int("NEWS_HTTP_TIMEOUT_SECONDS", 10)
+NEWS_MAX_5XX_RETRIES = env_int("NEWS_MAX_5XX_RETRIES", 2)
+NEWS_CIRCUIT_OPEN_MINUTES = env_int("NEWS_CIRCUIT_OPEN_MINUTES", 60)
+NEWS_DOMAIN_LOCK_SECONDS = env_int("NEWS_DOMAIN_LOCK_SECONDS", 60)
+
+# LLM calls are permitted only through apps.llm.client. Mock is intentionally
+# the default so a clean local setup never requires cloud credentials.
+LLM_BACKEND = env("LLM_BACKEND", "mock")
+AWS_REGION = env("AWS_REGION", "us-east-1")
+BEDROCK_MODEL_ID = env("BEDROCK_MODEL_ID", "")
+LLM_MAX_TOKENS = env_int("LLM_MAX_TOKENS", 1000)
+LLM_TIMEOUT_SECONDS = env_int("LLM_TIMEOUT_SECONDS", 30)
+LLM_PROVIDER_RETRIES = env_int("LLM_PROVIDER_RETRIES", 2)
+LLM_MAX_CALLS_PER_RUN = env_int("LLM_MAX_CALLS_PER_RUN", 300)
+LLM_DAILY_TOKEN_BUDGET = env_int("LLM_DAILY_TOKEN_BUDGET", 500000)
+LLM_INPUT_PRICE_PER_MILLION_USD = env("LLM_INPUT_PRICE_PER_MILLION_USD", "0")
+LLM_OUTPUT_PRICE_PER_MILLION_USD = env("LLM_OUTPUT_PRICE_PER_MILLION_USD", "0")

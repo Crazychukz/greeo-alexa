@@ -1,0 +1,23 @@
+# Example shape only. Both endpoints are intentionally non-existent.
+# Replace values only after you have reviewed a real publisher's terms.
+sources:
+  - name: Synthetic RSS One
+    feed_url: https://synthetic-news-one.invalid/rss.xml
+    region: Synthetic Region One
+    language: en
+    terms_url: https://synthetic-news-one.invalid/terms
+    terms_reviewed_at: 2026-09-25T00:00:00Z
+    use_policy: headline_snippet_only
+    attribution_text: Synthetic publisher attribution
+    active: false
+    min_interval_minutes: 30
+  - name: Synthetic RSS Two
+    feed_url: https://synthetic-news-two.invalid/feed
+    region: Synthetic Region Two
+    language: en
+    terms_url: https://synthetic-news-two.invalid/terms
+    terms_reviewed_at: 2026-09-25T00:00:00Z
+    use_policy: headline_snippet_only
+    attribution_text: Synthetic publisher attribution
+    active: false
+    min_interval_minutes: 60

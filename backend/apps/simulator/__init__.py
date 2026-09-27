@@ -1,0 +1,1 @@
+"""Alexa+ simulator application placeholder."""

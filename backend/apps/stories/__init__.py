@@ -1,0 +1,1 @@
+"""Stories application placeholder."""
