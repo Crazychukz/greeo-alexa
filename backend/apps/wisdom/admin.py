@@ -8,7 +8,7 @@ class ProverbAdmin(admin.ModelAdmin):
     list_display = ("id", "culture", "spoken_form", "verification_status", "tone_ok", "created_at")
     list_filter = ("verification_status", "tone_ok", "culture", "region")
     search_fields = ("id", "original_text", "spoken_form", "culture")
-    actions = ("mark_as_verified",)
+    actions = ("mark_as_verified", "approve_tone")
 
     @admin.action(description="Mark selected proverbs as verified")
     def mark_as_verified(self, request, queryset):
@@ -30,3 +30,9 @@ class ProverbAdmin(admin.ModelAdmin):
                 f"Refused {refused} proverb(s) without two citations.",
                 messages.ERROR,
             )
+
+    @admin.action(description="Approve tone for selected proverbs")
+    def approve_tone(self, request, queryset):
+        """A person has read each selected proverb and judged it fit to speak."""
+        updated = queryset.update(tone_ok=True)
+        self.message_user(request, f"Approved tone for {updated} proverb(s).", messages.SUCCESS)

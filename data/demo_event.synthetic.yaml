@@ -1,0 +1,77 @@
+# SYNTHETIC test fixture. Every place, publisher and proverb here is fictional.
+# Loaded by `make seed` (manage.py seed_synthetic). Never shown when ALLOW_SYNTHETIC is off.
+event:
+  title: "SYNTHETIC EVENT: The Lantern Footbridge of Veloria"
+  region: Veloria (fictional)
+  occurred_on: 2026-03-12
+  tone_class: neutral
+  themes: [cooperation, resilience, community]
+
+evidence:
+  - key: gazette-opening
+    publisher: Synthetic Gazette
+    headline: "SYNTHETIC: Veloria footbridge opens"
+    url: https://synthetic-gazette.invalid/veloria-footbridge?utm_source=fixture
+    published_on: 2026-03-12
+    note: >-
+      SYNTHETIC NOTE: Reports that the Veloria footbridge opened in March 2026 after
+      14 months of work funded by local households.
+  - key: courier-crossing
+    publisher: Synthetic Courier
+    headline: "SYNTHETIC: Life at the old Pell River crossing"
+    url: https://synthetic-courier.invalid/pell-river-crossing
+    published_on: 2026-03-10
+    note: >-
+      SYNTHETIC NOTE: Describes children using canoes to reach school before the bridge
+      and yearly floods at the old crossing.
+
+facts:
+  - text: SYNTHETIC. Residents of Veloria opened a footbridge over the Pell River on 12 March 2026.
+    evidence: [gazette-opening]
+  - text: SYNTHETIC. The bridge took 14 months to build and was paid for by 300 households.
+    evidence: [gazette-opening]
+  - text: SYNTHETIC. Before the bridge, children crossed the river by canoe to reach school.
+    evidence: [courier-crossing]
+
+context:
+  - kind: background
+    text: SYNTHETIC. The old crossing flooded most years.
+    evidence: [courier-crossing]
+
+perspectives:
+  - label: Bridge committee
+    summary: SYNTHETIC. Organisers describe the bridge as shared work by many families.
+    evidence: [gazette-opening]
+  - label: Canoe operators
+    summary: SYNTHETIC. Boat owners describe losing fares now that children walk across.
+    evidence: [courier-crossing]
+
+proverbs:
+  P1: {id: pv_synthetic01, role: opening}
+  P2: {id: pv_synthetic02, role: closing}
+
+tellings:
+  balanced:
+    beats:
+      - >-
+        Listen. In Veloria, the Pell River ran wide and cold, and the children crossed
+        it by canoe to reach school. The elders say {{P1}}
+      - >-
+        So 300 households gathered what they had. For 14 months they carried stone and
+        rope, season after season, until the bridge stood.
+      - >-
+        On 12 March 2026 the first children walked across, dry-footed, to school. And as
+        the saying goes, {{P2}}
+    closing_kind: reflection
+    closing_text: A crossing built together is carried together.
+  serious:
+    beats:
+      - >-
+        In Veloria, the Pell River flooded most years, and the children crossed it by
+        canoe to reach school. An old proverb says {{P1}}
+      - Then 300 households shared the cost. The work took 14 months.
+      - >-
+        The footbridge opened on 12 March 2026, and the way to school no longer depends
+        on the water. As the saying goes, {{P2}}
+    closing_kind: reflection
+    closing_text: Some work is finished only when many hands share it.

@@ -44,7 +44,7 @@ format:
 	fi
 
 seed:
-	@echo "Synthetic demo seeding is added in Prompt 2B."
+	$(COMPOSE) exec web python manage.py seed_synthetic
 
 demo:
-	@echo "Curated demo loading is added in Prompt 2B."
+	$(COMPOSE) exec web python manage.py load_demo_event ../data/demo_event.yaml --replace

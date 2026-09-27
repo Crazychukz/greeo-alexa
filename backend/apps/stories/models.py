@@ -195,7 +195,7 @@ class TellingProverb(models.Model):
     @property
     def proverb_is_servable(self) -> bool:
         """Avoid trusting a stale relationship when publication checks a proverb."""
-        return self.proverb.verification_status == "verified" and self.proverb.tone_ok
+        return self.proverb.is_servable
 
     def clean(self) -> None:
         if self.telling.story.tone_class == Story.ToneClass.SENSITIVE:

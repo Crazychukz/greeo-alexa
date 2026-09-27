@@ -142,6 +142,9 @@ CELERY_BEAT_SCHEDULE: dict[str, dict[str, object]] = {
 }
 # Synthetic fixtures stay hidden unless an environment opts in; dev.py enables them.
 ALLOW_SYNTHETIC = env_bool("ALLOW_SYNTHETIC", False)
+# Demo-only: also serve single-source proverbs. Off by default; the submission must
+# disclose it when on. See docs/proverbs/DEMO_CORPUS.md.
+DEMO_ALLOW_SINGLE_SOURCE_PROVERBS = env_bool("DEMO_ALLOW_SINGLE_SOURCE_PROVERBS", False)
 
 # RSS ingestion performs only permitted feed requests. No article pages are fetched.
 GREEO_CONTACT_EMAIL = env("GREEO_CONTACT_EMAIL", "local@example.invalid")

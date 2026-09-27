@@ -1,0 +1,3 @@
+# Phrases Greeo must never speak in a beat or closing. One phrase per line,
+# matched case-insensitively anywhere in the text. Lines starting with # are
+# comments. The project owner maintains this list; see docs/GRIOT_STYLE_GUIDE.md.

@@ -1,0 +1,45 @@
+# Curated event template. Copy to data/demo_event.yaml and replace every TODO.
+# The loader refuses any file that still contains the word TODO.
+# Read docs/CURATED_EVENT_GUIDE.md before writing anything.
+event:
+  title: TODO short neutral title, max 120 characters
+  region: TODO country or region
+  occurred_on: 2026-01-01  # TODO date the event happened
+  tone_class: neutral  # TODO neutral or sensitive
+  themes: [TODO]  # keys from data/themes.yaml
+
+evidence:
+  - key: TODO-short-key  # lowercase letters, digits, - and _
+    publisher: TODO publisher name
+    headline: TODO the article's headline
+    url: https://TODO  # the article URL; tracking parameters are removed on load
+    published_on: 2026-01-01  # TODO
+    note: TODO what this source says, in your own words, max 300 characters
+
+facts:
+  - text: TODO one checkable fact
+    evidence: [TODO-short-key]
+  - text: TODO a second checkable fact
+    evidence: [TODO-short-key]
+
+context:  # optional; kind is background, why_it_matters or consequence
+  - kind: background
+    text: TODO
+    evidence: [TODO-short-key]
+
+perspectives:  # optional; stored only if they cite two or more publishers
+  - label: TODO who holds this view
+    summary: TODO their view, fairly stated
+    evidence: [TODO-short-key]
+
+proverbs:  # optional; slot -> verified proverb id and role (opening, turn, closing)
+  P1: {id: TODO, role: opening}
+
+tellings:  # balanced is required; light and serious are optional
+  balanced:
+    beats:  # 3 to 5 beats, each at most 75 words after the proverb is inserted
+      - TODO beat one. The elders say {{P1}}
+      - TODO beat two
+      - TODO beat three
+    closing_kind: reflection  # moral, reflection or none
+    closing_text: TODO at most 200 characters; empty when closing_kind is none

@@ -9,7 +9,7 @@ from django.db.models import Q
 
 from apps.core.ids import proverb_id
 
-from .managers import ProverbManager
+from .managers import ProverbManager, servable_statuses
 
 
 class Proverb(models.Model):
@@ -59,6 +59,11 @@ class Proverb(models.Model):
                 errors["second_source_citation"] = "Verified proverbs need a second citation."
             if errors:
                 raise ValidationError(errors)
+
+    @property
+    def is_servable(self) -> bool:
+        """Instance form of ProverbQuerySet.servable(), read fresh at call time."""
+        return self.verification_status in servable_statuses() and self.tone_ok
 
     def __str__(self) -> str:
         return f"{self.culture}: {self.spoken_form[:60]}"
