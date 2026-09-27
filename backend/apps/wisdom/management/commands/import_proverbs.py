@@ -48,6 +48,11 @@ def validate_entries(entries: Iterable[dict[str, object]]) -> list[dict[str, obj
             raise CommandError(
                 f"Line {line_number}: missing field(s): {', '.join(sorted(missing))}."
             )
+        unknown = entry.keys() - REQUIRED_FIELDS
+        if unknown:
+            raise CommandError(
+                f"Line {line_number}: unknown field(s): {', '.join(sorted(unknown))}."
+            )
         if not isinstance(entry["themes"], list) or not all(
             isinstance(theme, str) for theme in entry["themes"]
         ):

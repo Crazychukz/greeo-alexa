@@ -4,7 +4,7 @@ import pytest
 from apps.stories.models import Story, StoryTelling
 from apps.wisdom.models import Proverb
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, connection
+from django.db import IntegrityError
 from django.test import override_settings
 
 from tests.factories import (
@@ -14,11 +14,6 @@ from tests.factories import (
     StoryFactory,
     StoryTellingFactory,
     TellingProverbFactory,
-)
-
-pytestmark = pytest.mark.skipif(
-    connection.vendor != "postgresql",
-    reason="Phase 2 uses PostgreSQL ArrayField constraints.",
 )
 
 

@@ -43,7 +43,7 @@ def env_int(name: str, default: int) -> int:
 
 
 def database_from_url(url: str) -> dict[str, str]:
-    """Convert supported database URLs into Django's database configuration."""
+    """Convert a PostgreSQL URL into Django's database configuration."""
     parsed = urlparse(url)
     if parsed.scheme in {"postgres", "postgresql"}:
         return {
@@ -54,16 +54,11 @@ def database_from_url(url: str) -> dict[str, str]:
             "HOST": parsed.hostname or "",
             "PORT": str(parsed.port or "5432"),
         }
-    if parsed.scheme == "sqlite":
-        name = unquote(parsed.path)
-        return {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": ":memory:" if name in {"", "/:memory:"} else name,
-        }
-    raise ImproperlyConfigured("DATABASE_URL must use postgresql:// or sqlite://.")
+    raise ImproperlyConfigured("DATABASE_URL must use postgresql://.")
 
 
-SECRET_KEY = env("DJANGO_SECRET_KEY", "change-me-for-any-non-local-environment")
+INSECURE_DEFAULT_SECRET_KEY = "change-me-for-any-non-local-environment"
+SECRET_KEY = env("DJANGO_SECRET_KEY", INSECURE_DEFAULT_SECRET_KEY)
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = [
     host.strip() for host in env("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
@@ -116,7 +111,8 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-DATABASES = {"default": database_from_url(env("DATABASE_URL", "sqlite:///:memory:"))}
+# No fallback: the models use PostgreSQL-only fields, so a missing URL must fail loudly.
+DATABASES = {"default": database_from_url(env("DATABASE_URL"))}
 
 REDIS_URL = env("REDIS_URL", "redis://localhost:6379/0")
 CACHES = {
@@ -144,13 +140,15 @@ CELERY_BEAT_SCHEDULE: dict[str, dict[str, object]] = {
         "schedule": crontab(minute="*/30"),
     }
 }
-ALLOW_SYNTHETIC = env_bool("ALLOW_SYNTHETIC", DEBUG)
+# Synthetic fixtures stay hidden unless an environment opts in; dev.py enables them.
+ALLOW_SYNTHETIC = env_bool("ALLOW_SYNTHETIC", False)
 
 # RSS ingestion performs only permitted feed requests. No article pages are fetched.
 GREEO_CONTACT_EMAIL = env("GREEO_CONTACT_EMAIL", "local@example.invalid")
 NEWS_HTTP_TIMEOUT_SECONDS = env_int("NEWS_HTTP_TIMEOUT_SECONDS", 10)
 NEWS_MAX_5XX_RETRIES = env_int("NEWS_MAX_5XX_RETRIES", 2)
 NEWS_CIRCUIT_OPEN_MINUTES = env_int("NEWS_CIRCUIT_OPEN_MINUTES", 60)
+NEWS_MAX_CONSECUTIVE_FAILURES = env_int("NEWS_MAX_CONSECUTIVE_FAILURES", 5)
 NEWS_DOMAIN_LOCK_SECONDS = env_int("NEWS_DOMAIN_LOCK_SECONDS", 60)
 
 # LLM calls are permitted only through apps.llm.client. Mock is intentionally

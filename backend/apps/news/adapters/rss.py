@@ -31,6 +31,10 @@ class RSSClient:
     def get(self, url: str, *, headers: dict[str, str], timeout: float) -> httpx.Response:
         return self.client.get(url, headers=headers, timeout=timeout)
 
+    def close(self) -> None:
+        """Release pooled connections; each fetch builds and closes its own client."""
+        self.client.close()
+
 
 def request_headers(etag: str, last_modified: str) -> dict[str, str]:
     """Build conditional headers without pretending to be a browser."""

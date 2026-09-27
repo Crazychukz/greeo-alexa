@@ -70,6 +70,7 @@ class LLMGateway:
                 max_tokens=settings.LLM_MAX_TOKENS,
             )
         except Exception as error:
+            self.budget.settle(reservation, 0)
             self._record_call(
                 definition=definition,
                 model_id=model_id,

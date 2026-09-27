@@ -29,8 +29,7 @@ class RedisBudgetGuard:
     def reserve(self, run_id: str, prompt: str, max_tokens: int) -> int:
         """Atomically count a call and reserve input plus maximum output tokens."""
         call_key = f"greeo:llm:calls:{run_id}"
-        calls = int(self.client.incr(call_key))
-        self.client.expire(call_key, 86400)
+        calls = self._incr_with_expiry(call_key, 1, 86400)
         if calls > settings.LLM_MAX_CALLS_PER_RUN:
             self.client.decr(call_key)
             raise BudgetExceeded(
@@ -40,8 +39,7 @@ class RedisBudgetGuard:
         reservation = ceil(len(prompt) / 4) + max_tokens
         day = datetime.now(UTC).date().isoformat()
         token_key = f"greeo:llm:tokens:{day}"
-        used = int(self.client.incrby(token_key, reservation))
-        self.client.expire(token_key, 172800)
+        used = self._incr_with_expiry(token_key, reservation, 172800)
         if used > settings.LLM_DAILY_TOKEN_BUDGET:
             self.client.decrby(token_key, reservation)
             self.client.decr(call_key)
@@ -51,6 +49,17 @@ class RedisBudgetGuard:
         return reservation
 
     def settle(self, reservation: int, actual_tokens: int) -> None:
-        """Replace a conservative reservation with observed provider usage."""
+        """Replace a conservative reservation with observed provider usage.
+
+        A failed call settles with zero tokens so its reservation is returned.
+        """
         day = datetime.now(UTC).date().isoformat()
         self.client.incrby(f"greeo:llm:tokens:{day}", actual_tokens - reservation)
+
+    def _incr_with_expiry(self, key: str, amount: int, ttl_seconds: int) -> int:
+        """Increment and set expiry in one transaction so a key never outlives its window."""
+        pipeline = self.client.pipeline(transaction=True)
+        pipeline.incrby(key, amount)
+        pipeline.expire(key, ttl_seconds)
+        value, _ = pipeline.execute()
+        return int(value)

@@ -8,9 +8,10 @@ from io import StringIO
 
 import pytest
 from apps.news.models import Article, FetchLog, SourceFeed
-from apps.news.services import fetch_source
+from apps.news.services import due_feed_ids, fetch_source, skip_reason
 from apps.news.tasks import ingest_feed, poll_due_feeds
 from django.core.management import call_command
+from django.test import override_settings
 from django.utils import timezone
 
 from tests.factories import SourceFeedFactory
@@ -202,3 +203,48 @@ def test_load_sources_accepts_synthetic_example(tmp_path) -> None:
 
     assert "created=1" in output.getvalue()
     assert SourceFeed.objects.get().name == "Synthetic Loader Feed"
+
+
+@pytest.mark.django_db
+def test_expired_circuit_is_closed_and_the_feed_is_polled_again() -> None:
+    source = approved_source(
+        circuit_state=SourceFeed.CircuitState.OPEN,
+        circuit_open_until=timezone.now() - timedelta(minutes=1),
+        circuit_opened_reason="HTTP 429; retry after earlier",
+    )
+
+    assert due_feed_ids() == [source.pk]
+    source.refresh_from_db()
+    assert source.circuit_state == SourceFeed.CircuitState.CLOSED
+    assert source.circuit_open_until is None
+
+
+@pytest.mark.django_db
+def test_circuit_still_open_is_not_polled_and_skip_reason_never_writes() -> None:
+    source = approved_source(
+        circuit_state=SourceFeed.CircuitState.OPEN,
+        circuit_open_until=timezone.now() - timedelta(minutes=1),
+    )
+
+    assert skip_reason(source) == "circuit is open"
+    source.refresh_from_db()
+    assert source.circuit_state == SourceFeed.CircuitState.OPEN
+
+    source.circuit_open_until = timezone.now() + timedelta(minutes=30)
+    source.save(update_fields=["circuit_open_until"])
+    assert due_feed_ids() == []
+
+
+@pytest.mark.django_db
+@override_settings(NEWS_MAX_CONSECUTIVE_FAILURES=2, NEWS_MAX_5XX_RETRIES=0)
+def test_repeated_failures_open_the_circuit() -> None:
+    source = approved_source(min_interval_minutes=0)
+
+    fetch_source(source, client=FakeClient([FakeResponse(404)]), guard=FakeGuard())
+    source.refresh_from_db()
+    assert source.circuit_state == SourceFeed.CircuitState.CLOSED
+
+    fetch_source(source, client=FakeClient([FakeResponse(404)]), guard=FakeGuard())
+    source.refresh_from_db()
+    assert source.circuit_state == SourceFeed.CircuitState.OPEN
+    assert source.circuit_opened_reason.startswith("2 consecutive failures; last: HTTP 404")

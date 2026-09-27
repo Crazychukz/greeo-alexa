@@ -123,6 +123,27 @@ class FakeRedis:
         del key, seconds
         return True
 
+    def pipeline(self, transaction: bool = True) -> FakePipeline:
+        del transaction
+        return FakePipeline(self)
+
+
+class FakePipeline:
+    """Queue commands like redis-py and run them together on execute()."""
+
+    def __init__(self, redis: FakeRedis) -> None:
+        self.redis = redis
+        self.commands: list[tuple[str, tuple[object, ...]]] = []
+
+    def incrby(self, key: str, amount: int) -> None:
+        self.commands.append(("incrby", (key, amount)))
+
+    def expire(self, key: str, seconds: int) -> None:
+        self.commands.append(("expire", (key, seconds)))
+
+    def execute(self) -> list[object]:
+        return [getattr(self.redis, name)(*args) for name, args in self.commands]
+
 
 @override_settings(LLM_MAX_CALLS_PER_RUN=1, LLM_DAILY_TOKEN_BUDGET=1000)
 def test_redis_budget_guard_enforces_per_run_limit() -> None:
@@ -131,6 +152,49 @@ def test_redis_budget_guard_enforces_per_run_limit() -> None:
 
     with pytest.raises(BudgetExceeded, match="LLM_MAX_CALLS_PER_RUN"):
         guard.reserve("synthetic-run", "prompt", 10)
+
+
+class RecordingBudget:
+    def __init__(self) -> None:
+        self.settled: list[tuple[int, int]] = []
+
+    def reserve(self, run_id: str, prompt: str, max_tokens: int) -> int:
+        del run_id, prompt, max_tokens
+        return 500
+
+    def settle(self, reservation: int, actual_tokens: int) -> None:
+        self.settled.append((reservation, actual_tokens))
+
+
+class FailingBackend:
+    name = "mock"
+
+    def generate(self, *, prompt: str, model_id: str, max_tokens: int) -> BackendResponse:
+        del prompt, model_id, max_tokens
+        raise LLMProviderError("synthetic provider outage")
+
+
+@pytest.mark.django_db
+def test_failed_provider_call_returns_its_budget_reservation() -> None:
+    budget = RecordingBudget()
+    gateway = LLMGateway(backend=FailingBackend(), budget=budget)
+
+    with pytest.raises(LLMProviderError):
+        gateway.generate_json("establish_facts", {}, FactsResponse)
+
+    assert budget.settled == [(500, 0)]
+    assert LLMCall.objects.get().ok is False
+
+
+@override_settings(LLM_MAX_CALLS_PER_RUN=10, LLM_DAILY_TOKEN_BUDGET=1000)
+def test_settling_a_failed_call_frees_the_daily_reservation() -> None:
+    redis = FakeRedis()
+    guard = RedisBudgetGuard(client=redis)
+
+    reservation = guard.reserve("synthetic-run", "prompt", 100)
+    guard.settle(reservation, 0)
+
+    assert sum(v for k, v in redis.values.items() if k.startswith("greeo:llm:tokens:")) == 0
 
 
 class NoNetworkBedrockClient:

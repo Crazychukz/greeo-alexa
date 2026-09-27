@@ -99,3 +99,31 @@ def test_proverb_audit_reports_synthetic_fixture_coverage() -> None:
 
     assert "verified: 1" in output.getvalue()
     assert "Themes with zero servable proverbs:" in output.getvalue()
+
+
+@pytest.mark.django_db
+def test_import_rejects_unknown_fields_with_a_readable_error(tmp_path) -> None:
+    corpus = tmp_path / "proverbs.jsonl"
+    entry = {
+        "original_text": "TEST PROVERB EXTRA FIELD",
+        "language": "Test language",
+        "spoken_form": "Test spoken form",
+        "translation": "Test translation",
+        "meaning_note": "Test meaning",
+        "speak_original_ok": False,
+        "culture": "Test culture",
+        "region": "Test region",
+        "source_citation": "Test source one",
+        "second_source_citation": "Test source two",
+        "license": "Test license",
+        "verification_status": "verified",
+        "dispute_note": "",
+        "themes": ["patience"],
+        "tone_ok": True,
+        "sourse_url": "typo field",
+    }
+    corpus.write_text(json.dumps(entry), encoding="utf-8")
+
+    with pytest.raises(CommandError, match="unknown field\\(s\\): sourse_url"):
+        call_command("import_proverbs", corpus)
+    assert Proverb.objects.count() == 0

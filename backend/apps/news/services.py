@@ -90,19 +90,33 @@ def published_at(entry: Any) -> datetime | None:
     return None
 
 
+def close_expired_circuit(source: SourceFeed, now: datetime | None = None) -> None:
+    """Close a circuit whose retry deadline has passed so the feed can be polled again."""
+    now = now or timezone.now()
+    if (
+        source.circuit_state == SourceFeed.CircuitState.OPEN
+        and source.circuit_open_until
+        and source.circuit_open_until <= now
+    ):
+        source.circuit_state = SourceFeed.CircuitState.CLOSED
+        source.circuit_opened_reason = ""
+        source.circuit_open_until = None
+        source.consecutive_failures = 0
+        source.save(
+            update_fields=(
+                "circuit_state",
+                "circuit_opened_reason",
+                "circuit_open_until",
+                "consecutive_failures",
+            )
+        )
+
+
 def skip_reason(source: SourceFeed, now: datetime | None = None) -> str | None:
-    """Return a policy reason before any network request is permitted."""
+    """Return a policy reason before any network request is permitted. Never writes."""
     now = now or timezone.now()
     if source.circuit_state == SourceFeed.CircuitState.OPEN:
-        if source.circuit_open_until and source.circuit_open_until <= now:
-            source.circuit_state = SourceFeed.CircuitState.CLOSED
-            source.circuit_opened_reason = ""
-            source.circuit_open_until = None
-            source.save(
-                update_fields=("circuit_state", "circuit_opened_reason", "circuit_open_until")
-            )
-        else:
-            return "circuit is open"
+        return "circuit is open"
     if not source.active:
         return "feed is inactive"
     if source.terms_reviewed_at is None:
@@ -157,6 +171,7 @@ def fetch_source(
     sleep: Any = time.sleep,
 ) -> IngestResult:
     """Fetch one approved feed, recording every result and never touching article pages."""
+    close_expired_circuit(source)
     reason = skip_reason(source)
     if reason:
         FetchLog.objects.create(
@@ -180,7 +195,8 @@ def fetch_source(
         )
         return IngestResult(skipped=1)
 
-    client = client or RSSClient()
+    owned_client = RSSClient() if client is None else None
+    client = client or owned_client
     started = time.monotonic()
     try:
         response = _request_with_5xx_retry(source, client, sleep)
@@ -196,7 +212,11 @@ def fetch_source(
             )
             return IngestResult(not_modified=1)
         if response.status_code in {403, 429}:
-            _open_circuit(source, response.status_code, response.headers.get("Retry-After", ""))
+            _open_circuit(
+                source,
+                reason=f"HTTP {response.status_code}",
+                retry_after=response.headers.get("Retry-After", ""),
+            )
             FetchLog.objects.create(
                 source=source,
                 status_code=response.status_code,
@@ -220,7 +240,9 @@ def fetch_source(
             )
             return IngestResult(error=1)
         if _looks_like_challenge(response):
-            _open_circuit(source, response.status_code, "challenge response detected")
+            _open_circuit(
+                source, reason=f"HTTP {response.status_code}; challenge response detected"
+            )
             FetchLog.objects.create(
                 source=source,
                 status_code=response.status_code,
@@ -254,6 +276,8 @@ def fetch_source(
         )
         return IngestResult(error=1)
     finally:
+        if owned_client is not None:
+            owned_client.close()
         try:
             guard.complete(source, lock_key)
         except redis.RedisError:
@@ -315,20 +339,25 @@ def _store_entries(source: SourceFeed, payload: bytes) -> IngestResult:
 
 
 def _record_failure(source: SourceFeed, reason: str) -> None:
-    """Retain failure count without opening a circuit for ordinary transient errors."""
+    """Count a failure, opening the circuit once a feed keeps failing."""
     source.last_fetched_at = timezone.now()
     source.consecutive_failures += 1
     source.save(update_fields=("last_fetched_at", "consecutive_failures"))
+    if source.consecutive_failures >= settings.NEWS_MAX_CONSECUTIVE_FAILURES:
+        _open_circuit(
+            source,
+            reason=f"{source.consecutive_failures} consecutive failures; last: {reason[:200]}",
+        )
 
 
-def _open_circuit(source: SourceFeed, status_code: int, retry_after: str) -> None:
+def _open_circuit(source: SourceFeed, *, reason: str, retry_after: str = "") -> None:
     """Block further fetches, retaining any server-provided retry delay."""
     until = retry_after_deadline(retry_after)
     if until is None:
         until = timezone.now() + timedelta(minutes=settings.NEWS_CIRCUIT_OPEN_MINUTES)
     source.circuit_state = SourceFeed.CircuitState.OPEN
     source.circuit_open_until = until
-    source.circuit_opened_reason = f"HTTP {status_code}; retry after {until.isoformat()}"
+    source.circuit_opened_reason = f"{reason}; retry after {until.isoformat()}"
     source.last_fetched_at = timezone.now()
     source.save(
         update_fields=(
@@ -374,6 +403,10 @@ def due_feed_ids(now: datetime | None = None) -> list[int]:
         active=True,
         terms_reviewed_at__isnull=False,
         use_policy=SourceFeed.UsePolicy.HEADLINE_SNIPPET_ONLY,
-        circuit_state=SourceFeed.CircuitState.CLOSED,
     )
-    return [feed.pk for feed in feeds if skip_reason(feed, now) is None]
+    eligible = []
+    for feed in feeds:
+        close_expired_circuit(feed, now)
+        if skip_reason(feed, now) is None:
+            eligible.append(feed.pk)
+    return eligible
