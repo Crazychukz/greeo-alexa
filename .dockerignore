@@ -6,4 +6,3 @@ backend/.venv/
 __pycache__/
 *.py[cod]
 *.sqlite3
-legacy/greeo-v1/

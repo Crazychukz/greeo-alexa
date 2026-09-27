@@ -18,7 +18,7 @@ Do not use “Tales by Moonlight” as a product name or brand; say “moonlight
 - Judging covers Technical Implementation, Design, Potential Impact, and Quality of the Idea. “Creative” means agentic workflow across services, state across sessions, cards/carousels, and MCP Apps. A single-turn Q&A or thin API wrapper is insufficient.
 - Maintain a public repo with an open-source license, simulator source, clean-clone setup instructions, and no secrets.
 - Document AWS services used for the AWS Builder mini challenge and maintain a friction log.
-- Greeo began as a Gemini 3 hackathon entry. Be transparent about its history and what is new in `docs/PROJECT_HISTORY.md`.
+- Greeo's concept began as a web prototype entered in the Gemini 3 hackathon. This repository is a clean rebuild started during the Submission Period, with no prior code reused. The rules require explaining what is new: keep the "Project history" section of `README.md` accurate and short.
 
 ## Required research before the relevant phases
 
@@ -52,7 +52,7 @@ During the vertical-slice phase, one human-curated real event is the golden test
 8. Identity comes from the request authentication, never from a tool argument. Every memory query filters by user.
 9. Every fact, context item, and perspective links to evidence.
 10. Never describe scripted behaviour as LLM behaviour. Traces record `host_mode = mock | llm`.
-11. `legacy/` is read-only reference. Port by rewriting; never copy secrets or keys; record what was ported in `docs/PROJECT_HISTORY.md`.
+11. No prototype code is used. `docs/notes/prior-prototype.md` describes the earlier web prototype for context only; do not recreate its patterns where they conflict with these rules (for example, fetching article pages or letting a model choose proverbs).
 12. “Griot” is a specific cultural/historical tradition, not a synonym for all African storytelling. Product copy says Greeo is inspired by African oral storytelling traditions; use “griot” only as a specific influence where culturally appropriate and supported by the style guide.
 13. A moral/reflection may express a broad human theme, but must not judge a real political actor, organisation, community, disputed claim, or side as right/wrong; infer motives; or turn a contested event into a lesson unsupported by evidence. For sensitive or contentious events, prefer a neutral reflection or omit it.
 14. The layer order is not mandatory navigation. Users may interrupt a tale or jump directly to facts, context, perspectives, proverb explanation, or sources, then resume where they stopped.
