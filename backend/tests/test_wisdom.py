@@ -189,3 +189,58 @@ def test_demo_corpus_converter_output_imports_as_unservable_single_source(tmp_pa
     assert proverb.tone_ok is False
     with override_settings(DEMO_ALLOW_SINGLE_SOURCE_PROVERBS=True):
         assert not Proverb.objects.servable().exists()
+
+
+def demo_row(**overrides) -> dict:
+    row = {
+        "original_text": "TEST PROVERB REIMPORT",
+        "language": "Test language",
+        "spoken_form": "Test spoken form",
+        "translation": "Test translation",
+        "meaning_note": "Test meaning",
+        "speak_original_ok": False,
+        "culture": "Test culture",
+        "region": "Test region",
+        "source_citation": "Test source one",
+        "second_source_citation": "",
+        "license": "Test license",
+        "verification_status": "single_source",
+        "dispute_note": "",
+        "themes": ["patience"],
+        "tone_ok": False,
+    }
+    return row | overrides
+
+
+def import_rows(tmp_path, *rows: dict) -> None:
+    corpus = tmp_path / "corpus.jsonl"
+    corpus.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+    call_command("import_proverbs", corpus, stdout=StringIO())
+
+
+@pytest.mark.django_db
+def test_reimport_keeps_tone_approval_and_higher_verification(tmp_path) -> None:
+    import_rows(tmp_path, demo_row())
+    Proverb.objects.update(
+        tone_ok=True,
+        verification_status=Proverb.VerificationStatus.VERIFIED,
+        second_source_citation="Reviewer's second source",
+    )
+
+    import_rows(tmp_path, demo_row(meaning_note="Corrected meaning"))
+
+    proverb = Proverb.objects.get()
+    assert proverb.meaning_note == "Corrected meaning"
+    assert proverb.tone_ok is True
+    assert proverb.verification_status == Proverb.VerificationStatus.VERIFIED
+    assert proverb.second_source_citation == "Reviewer's second source"
+
+
+@pytest.mark.django_db
+def test_reimport_can_dispute_but_never_clears_a_dispute(tmp_path) -> None:
+    import_rows(tmp_path, demo_row(tone_ok=True))
+    import_rows(tmp_path, demo_row(verification_status="disputed"))
+    assert Proverb.objects.get().verification_status == Proverb.VerificationStatus.DISPUTED
+
+    import_rows(tmp_path, demo_row(verification_status="single_source"))
+    assert Proverb.objects.get().verification_status == Proverb.VerificationStatus.DISPUTED

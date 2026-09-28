@@ -310,3 +310,27 @@ def test_single_source_proverb_loads_only_in_demo_mode() -> None:
         assert "pv_synthetic02 is single_source" in errors_for(fixture_data())
     with override_settings(DEMO_ALLOW_SINGLE_SOURCE_PROVERBS=True):
         assert load(fixture_data()).story.status == Story.Status.PUBLISHED
+
+
+def test_reusing_an_article_with_a_different_note_is_refused() -> None:
+    load(fixture_data())
+    other = fixture_data()
+    other["event"]["title"] = "SYNTHETIC EVENT: A second Veloria footbridge"
+    other["evidence"][0]["note"] = "SYNTHETIC NOTE: a different summary of the same article."
+
+    assert "already cited by story" in errors_for(other)
+
+    other["evidence"][0]["note"] = fixture_data()["evidence"][0]["note"]
+    assert load(other).story.status == Story.Status.PUBLISHED
+
+
+def test_publisher_names_differing_only_in_case_count_once() -> None:
+    data = fixture_data()
+    data["evidence"][1]["publisher"] = "synthetic gazette"
+    data["evidence"][0]["publisher"] = "Synthetic Gazette"
+
+    result = load(data)
+
+    assert result.story.perspectives.count() == 0
+    assert any("fewer than two publishers" in w for w in result.warnings)
+    assert SourceFeed.objects.filter(feed_url="curated://synthetic-gazette").count() == 1

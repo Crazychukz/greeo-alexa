@@ -83,6 +83,37 @@ def validate_entries(entries: Iterable[dict[str, object]]) -> list[dict[str, obj
     return validated
 
 
+VERIFICATION_RANK = {
+    Proverb.VerificationStatus.UNVERIFIED: 0,
+    Proverb.VerificationStatus.SINGLE_SOURCE: 1,
+    Proverb.VerificationStatus.VERIFIED: 2,
+}
+
+
+def keep_review_decisions(existing: Proverb, entry: dict[str, object]) -> dict[str, object]:
+    """Stop a re-import from undoing review done in the admin.
+
+    A file may raise verification or approve tone, and may mark an entry disputed, but it
+    may not silently lower a status, clear a dispute, or withdraw a tone approval a person
+    gave. When a verified entry is kept verified, its citations are kept too.
+    """
+    merged = dict(entry)
+    if existing.tone_ok and not entry["tone_ok"]:
+        merged["tone_ok"] = True
+    incoming = entry["verification_status"]
+    current = existing.verification_status
+    if current == Proverb.VerificationStatus.DISPUTED:
+        merged["verification_status"] = current
+    elif incoming != Proverb.VerificationStatus.DISPUTED and VERIFICATION_RANK.get(
+        current, -1
+    ) > VERIFICATION_RANK.get(incoming, -1):
+        merged["verification_status"] = current
+        for field in ("source_citation", "second_source_citation"):
+            if not str(entry[field]).strip():
+                merged[field] = getattr(existing, field)
+    return merged
+
+
 class Command(BaseCommand):
     help = "Import a verified proverb corpus JSONL file without partial writes."
 
@@ -116,7 +147,7 @@ class Command(BaseCommand):
                     None,
                 )
                 if existing:
-                    for field, value in entry.items():
+                    for field, value in keep_review_decisions(existing, entry).items():
                         setattr(existing, field, value)
                     existing.full_clean()
                     existing.save()

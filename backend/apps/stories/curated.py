@@ -15,6 +15,7 @@ from typing import Literal
 import yaml
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils.text import slugify
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -170,7 +171,7 @@ def validate_curated_event(event: CuratedEvent, *, synthetic: bool) -> Report:
         report.extend(f"perspectives[{index}]", validators.check_citations(item.evidence, known))
     publishers = validators.perspective_publishers(
         (p.evidence for p in event.perspectives),
-        {item.key: item.publisher for item in event.evidence},
+        {item.key: publisher_key(item.publisher) for item in event.evidence},
     )
     if event.perspectives and len(publishers) < 2:
         report.warnings.append(
@@ -207,6 +208,11 @@ def validate_curated_event(event: CuratedEvent, *, synthetic: bool) -> Report:
             f"{where}.closing_text", validators.check_banned_phrases(telling.closing_text, banned)
         )
     return report
+
+
+def publisher_key(name: str) -> str:
+    """One identity per publisher, so "BBC" and "bbc" count once everywhere."""
+    return slugify(name)
 
 
 def _check_synthetic_flag(title: str, synthetic: bool, report: Report) -> None:
@@ -251,6 +257,7 @@ def load_curated_event(
         report.errors.append(
             f"a story from this event already exists ({existing.pk}); use --replace to reload it."
         )
+    report.errors.extend(_shared_evidence_conflicts(event, existing))
     if not report.ok:
         _trace(None, StageTrace.Status.FAILED, event, error="\n".join(report.errors))
         raise CuratedEventError(report)
@@ -269,6 +276,35 @@ def load_curated_event(
         raise CuratedEventError(report) from error
     _trace(story, StageTrace.Status.OK, event)
     return LoadResult(story=story, warnings=report.warnings)
+
+
+def _shared_evidence_conflicts(event: CuratedEvent, existing: Story | None) -> list[str]:
+    """Refuse to rewrite a note that another story already shows as its source."""
+    problems = []
+    for item in event.evidence:
+        digest = url_digest(canonical_url(item.url))
+        article = Article.objects.filter(
+            url_hash=digest, evidence_kind=Article.EvidenceKind.CURATED
+        ).first()
+        if article is None or article.snippet == item.note:
+            continue
+        others = (
+            Story.objects.filter(
+                Q(facts__articles=article)
+                | Q(context_items__articles=article)
+                | Q(perspectives__articles=article)
+            )
+            .exclude(pk=existing.pk if existing else None)
+            .distinct()
+            .values_list("pk", flat=True)
+        )
+        if others:
+            problems.append(
+                f"evidence {item.key}: this article is already cited by story "
+                f"{', '.join(others)} with a different note; reuse that note so its "
+                "sources do not change."
+            )
+    return problems
 
 
 def _write_story(
@@ -298,13 +334,14 @@ def _write_evidence(event: CuratedEvent) -> dict[str, Article]:
     """One inactive, never-fetched SourceFeed per publisher; one Article per evidence key."""
     articles = {}
     for item in event.evidence:
+        feed_url = f"curated://{publisher_key(item.publisher)}"
         source, _ = SourceFeed.objects.get_or_create(
-            feed_url=f"curated://{slugify(item.publisher)}",
+            feed_url=feed_url,
             defaults={
                 "name": item.publisher,
                 "region": event.event.region,
                 "language": item.language,
-                "terms_url": f"curated://{slugify(item.publisher)}",
+                "terms_url": feed_url,
                 "attribution_text": item.publisher,
                 "active": False,
                 "use_policy": SourceFeed.UsePolicy.BLOCKED,
