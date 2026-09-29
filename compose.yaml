@@ -50,11 +50,16 @@ services:
 
   mcp:
     build: .
-    command: ["sh", "-c", "sleep infinity"]
+    command: python manage.py run_mcp_server
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
+      # Listen on all interfaces inside the container; the port is published on
+      # 127.0.0.1 only, as the MCP spec advises for local servers.
+      MCP_HOST: 0.0.0.0
+    ports:
+      - "127.0.0.1:8001:8001"
     volumes:
       - ./backend:/app/backend
       - ./data:/app/data:ro

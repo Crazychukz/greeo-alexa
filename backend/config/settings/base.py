@@ -154,6 +154,23 @@ NEWS_CIRCUIT_OPEN_MINUTES = env_int("NEWS_CIRCUIT_OPEN_MINUTES", 60)
 NEWS_MAX_CONSECUTIVE_FAILURES = env_int("NEWS_MAX_CONSECUTIVE_FAILURES", 5)
 NEWS_DOMAIN_LOCK_SECONDS = env_int("NEWS_DOMAIN_LOCK_SECONDS", 60)
 
+# MCP server (separate process: manage.py run_mcp_server). Origins and hosts are the
+# DNS-rebinding allowlists required by the MCP Streamable HTTP transport.
+MCP_HOST = env("MCP_HOST", "127.0.0.1")
+MCP_PORT = env_int("MCP_PORT", 8001)
+MCP_ALLOWED_HOSTS = [
+    h.strip()
+    for h in env("MCP_ALLOWED_HOSTS", "localhost:*,127.0.0.1:*,mcp:*").split(",")
+    if h.strip()
+]
+MCP_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in env("MCP_ALLOWED_ORIGINS", "http://localhost:*,http://127.0.0.1:*").split(",")
+    if o.strip()
+]
+# Amazon's payload guidance: "no third-party tracking parameters, or upstream deep links".
+INCLUDE_SOURCE_URLS = env_bool("INCLUDE_SOURCE_URLS", False)
+
 # LLM calls are permitted only through apps.llm.client. Mock is intentionally
 # the default so a clean local setup never requires cloud credentials.
 LLM_BACKEND = env("LLM_BACKEND", "mock")

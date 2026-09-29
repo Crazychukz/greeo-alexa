@@ -2,7 +2,7 @@
 
 COMPOSE := docker compose
 
-.PHONY: up down logs migrate shell test lint format seed demo
+.PHONY: up down logs migrate shell test lint format seed demo smoke
 
 up:
 	@test -f .env || cp .env.example .env
@@ -48,3 +48,6 @@ seed:
 
 demo:
 	$(COMPOSE) exec web python manage.py load_demo_event ../data/demo_event.yaml --replace
+
+smoke:
+	$(COMPOSE) exec web python ../scripts/mcp_smoke.py http://mcp:8001/mcp

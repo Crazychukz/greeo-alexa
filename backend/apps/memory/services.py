@@ -230,18 +230,28 @@ def next_layer_suggestion(user: EndUser, story: Story) -> Suggestion | None:
     return None
 
 
+# The one spoken label per layer, shared with the MCP tools so an option is never
+# offered twice under two names.
+LAYER_LABELS = {
+    "tale": "hear the tale",
+    "closing": "the closing thought",
+    "proverbs": "the proverb explained",
+    "facts": "the facts",
+    "context": "the background",
+    "perspectives": "different perspectives",
+    "sources": "the sources",
+}
+
+
 def _layer_label(layer: str, telling: StoryTelling | None) -> str:
     if layer == "closing" and telling is not None:
         return f"the {telling.closing_kind}"
-    return {
-        "tale": "hear the tale",
-        "closing": "the closing thought",
-        "proverbs": "the proverb explained",
-        "facts": "what actually happened",
-        "context": "the background",
-        "perspectives": "different perspectives",
-        "sources": "the sources",
-    }[layer]
+    return LAYER_LABELS[layer]
+
+
+def explored_layers(user: EndUser, story: Story) -> set[str]:
+    encounter = StoryEncounter.objects.filter(user=user, story=story).first()
+    return set(encounter.layers_explored) if encounter else set()
 
 
 def _locked_encounter(user: EndUser, story: Story) -> StoryEncounter:

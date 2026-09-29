@@ -32,6 +32,17 @@ written when the friction happens, not reconstructed afterwards.
 - **Workaround used:** Negotiate both versions and treat a missing `MCP-Protocol-Version` header as 2025-03-26, as the MCP spec advises.
 - **Actionable suggestion:** Update the lifecycle examples to the version Alexa+ really sends, and list every supported version on the overview page.
 
+### 2026-09-29: MCP Python SDK sends validation and exception text to the client
+
+- **Tool / doc:** `mcp` Python SDK 2.2.0 (`mcp/server/mcpserver/server.py`, `_handle_call_tool`)
+- **Task attempted:** Make sure no tool name, field name or technical message can reach an Alexa+ customer, as the functional requirements demand.
+- **Steps taken:** Called a tool with an invalid argument through the SDK client; read the server source; added a middleware and inspected what it receives.
+- **Expected result:** A generic or configurable error message for argument-validation failures and unexpected exceptions.
+- **Actual result:** The SDK returns `str(exc)` as the tool result, for example "Error executing tool tell_tale: 1 validation error for tell_taleArguments … https://errors.pydantic.dev/…". There is no setting to change this, and at the middleware layer the result arrives as a camelCase wire-format dict rather than a `CallToolResult`, which is undocumented. Also, v2 renamed `FastMCP` to `MCPServer`, so most tutorials no longer run.
+- **Severity:** High for voice products (the text becomes speech); Medium otherwise.
+- **Workaround used:** A server middleware that rewrites any error result without Greeo's own error marker into a plain-language message, handling both the dict and model forms; handlers catch everything else themselves.
+- **Actionable suggestion:** Add a server option for a customer-safe error formatter, and document the result type middleware receives for `tools/call`.
+
 ### 2026-09-28: No documented answer on whether tool text is spoken verbatim
 
 - **Tool / doc:** Alexa+ MCP Design Guide,
