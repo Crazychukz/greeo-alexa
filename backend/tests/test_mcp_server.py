@@ -262,6 +262,8 @@ def test_requested_tone_is_served_when_available(story: Story) -> None:
     result = call("tell_tale", {"story_id": story.pk, "tone": "serious"})
 
     assert result.structured_content["tone_served"] == "serious"
+    assert result.structured_content["voice_style"] == "hopeful_healer"
+    assert result.structured_content["voice_name"] == "Hopeful Healer"
 
 
 def test_beat_out_of_range_is_a_friendly_error(story: Story) -> None:

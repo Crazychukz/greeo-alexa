@@ -37,6 +37,7 @@ proverbs:  # optional; slot -> verified proverb id and role (opening, turn, clos
 
 tellings:  # balanced is required; light and serious are optional
   balanced:
+    # voice: moonlight_elder  # optional; see "Voices" in docs/CURATED_EVENT_GUIDE.md
     beats:  # 3 to 5 beats, each at most 75 words after the proverb is inserted
       - TODO beat one. The elders say {{P1}}
       - TODO beat two

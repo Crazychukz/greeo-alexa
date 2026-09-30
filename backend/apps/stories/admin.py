@@ -66,7 +66,15 @@ class TellingProverbInline(admin.TabularInline):
 
 @admin.register(StoryTelling)
 class StoryTellingAdmin(admin.ModelAdmin):
-    list_display = ("story", "tone", "status", "closing_kind", "is_curated", "revision_count")
+    list_display = (
+        "story",
+        "tone",
+        "voice_style",
+        "status",
+        "closing_kind",
+        "is_curated",
+        "revision_count",
+    )
     list_filter = ("tone", "status", "closing_kind", "is_curated")
     search_fields = ("story__handle", "moral")
     inlines = (BeatInline, TellingProverbInline)

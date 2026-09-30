@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Greeo: The tale</title>
+<style>
+/* Greeo design system: night sky, firelight accents, a plain moon. No external assets. */
+:root {
+  --night: #0e1424; --night-2: #172038; --line: #2e3a5c;
+  --ink: #f6eedd; --muted: #c2bba9; --fire: #f2a541; --ember: #e8794a; --on-fire: #1a1408;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --gap: 16px; --radius: 14px; --inset-t: 0px; --inset-r: 0px; --inset-b: 0px; --inset-l: 0px;
+}
+:root[data-theme="light"] {
+  --night: #fbf5e9; --night-2: #f1e7d2; --line: #d8cbb0;
+  --ink: #191d2c; --muted: #4b4f61; --fire: #8f4a00; --ember: #a3401c; --on-fire: #fffaf0;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--night); color: var(--ink); }
+body {
+  font: 18px/1.5 var(--sans);
+  padding: calc(var(--gap) + var(--inset-t)) calc(var(--gap) + var(--inset-r))
+           calc(var(--gap) + var(--inset-b)) calc(var(--gap) + var(--inset-l));
+}
+.card { max-width: 768px; min-height: 448px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--gap); }
+.size-l .card { max-width: 1100px; }
+.size-l body, .size-l { font-size: 21px; }
+.size-s body, .size-s { font-size: 16px; }
+
+.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .04em; color: var(--fire); }
+.moon { width: 26px; height: 26px; flex: none; }
+.moon .disc { fill: var(--ink); } .moon .bite { fill: var(--night); }
+.title { flex: 1 1 240px; margin: 0; font: 600 1rem/1.3 var(--sans); color: var(--muted); }
+.meta { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 12px; font-size: .8rem; color: var(--muted); white-space: nowrap; }
+.chip.fire { border-color: var(--fire); color: var(--fire); }
+
+.strip { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+.strip li { font-size: .7rem; font-weight: 700; letter-spacing: .08em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.strip li[data-state="heard"] { border-color: var(--muted); color: var(--ink); }
+.strip li[data-state="heard"]::before { content: "\2713\00a0"; }
+.strip li[data-state="current"] { background: var(--fire); border-color: var(--fire); color: var(--on-fire); }
+
+.content { flex: 1; display: flex; flex-direction: column; gap: var(--gap); justify-content: center; }
+.content h2 { margin: 0; font: 700 .8rem/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--fire); }
+.content p { margin: 0; }
+.panel { background: var(--night-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.calm { font: italic 1.15rem/1.5 var(--serif); color: var(--muted); text-align: center; padding: 24px 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.next { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.next .label { font-size: .75rem; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.next button { font: inherit; font-size: .9rem; color: var(--ink); background: transparent; border: 1px solid var(--fire); border-radius: 999px; padding: 8px 16px; min-height: 44px; cursor: pointer; }
+.next button:hover { background: var(--night-2); }
+.next button:focus-visible { outline: 3px solid var(--fire); outline-offset: 2px; }
+.next button:disabled { opacity: .5; cursor: default; border-color: var(--line); }
+
+/* Motion moves text a little but never hides it: a host that pauses animations still shows it. */
+@media (prefers-reduced-motion: no-preference) {
+  .content > * { animation: rise .35s ease-out; }
+  @keyframes rise { from { transform: translateY(6px); } to { transform: none; } }
+}
+.beat { font: 400 clamp(1.35rem, 3.6vw, 2rem)/1.45 var(--serif); }
+.beat mark { background: none; color: var(--fire); font-style: italic; }
+.beat .badge { display: inline-block; margin-left: 8px; vertical-align: middle; font: 700 .7rem/1 var(--sans); font-style: normal; letter-spacing: .06em; text-transform: uppercase; color: var(--on-fire); background: var(--fire); border-radius: 999px; padding: 4px 10px; }
+.dots { display: flex; gap: 8px; align-items: center; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--muted); }
+.dots i.done { background: var(--muted); }
+.dots i.now { width: 14px; height: 14px; background: var(--fire); border-color: var(--fire); }
+</style>
+</head>
+<body data-card="tale">
+<div class="card">
+  <header class="top">
+    <div class="brand">
+      <svg class="moon" viewBox="0 0 26 26" aria-hidden="true" focusable="false">
+        <circle class="disc" cx="13" cy="13" r="11"/><circle class="bite" cx="18" cy="10" r="9"/>
+      </svg>
+      <span>Greeo</span>
+    </div>
+    <h1 class="title" id="title">The tale</h1>
+    <div class="meta" id="meta"></div>
+  </header>
+  <ol class="strip" id="strip" aria-label="Parts of this story"></ol>
+  <main class="content" id="content">
+    <p class="calm">Waiting for the story&hellip;</p>
+  </main>
+  <footer class="next" id="next" aria-label="You can ask for"></footer>
+</div>
+<script>
+/* The bridge: MCP Apps JSON-RPC over postMessage. No storage, no network. */
+(function () {
+  "use strict";
+  var G = window.Greeo = { context: {}, render: null };
+  var pending = {}, nextId = 1, closed = false;
+  var byId = function (id) { return document.getElementById(id); };
+
+  /* Build DOM with text nodes only, so story text can never become markup. */
+  G.el = function (tag, attrs, children) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (key) {
+      if (key === "class") node.className = attrs[key];
+      else if (attrs[key] !== undefined && attrs[key] !== null) node.setAttribute(key, attrs[key]);
+    });
+    [].concat(children || []).forEach(function (child) {
+      if (child !== undefined && child !== null && child !== "") {
+        node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
+      }
+    });
+    return node;
+  };
+  G.chip = function (text, extra) { return G.el("span", { class: "chip " + (extra || "") }, text); };
+  G.calm = function (text) { return G.el("p", { class: "calm" }, text); };
+  G.sources = function (refs) {
+    return G.el("div", { class: "row" }, (refs || []).map(function (ref) {
+      return G.chip(ref.publisher + (ref.date ? " · " + ref.date : ""));
+    }));
+  };
+
+  function post(message) { if (window.parent !== window) window.parent.postMessage(message, "*"); }
+  function request(method, params) {
+    var id = nextId++;
+    return new Promise(function (resolve, reject) {
+      pending[id] = { resolve: resolve, reject: reject };
+      post({ jsonrpc: "2.0", id: id, method: method, params: params });
+    });
+  }
+  function notify(method, params) { post({ jsonrpc: "2.0", method: method, params: params || {} }); }
+
+  function applyContext(partial) {
+    var ctx = G.context, root = document.documentElement;
+    Object.keys(partial || {}).forEach(function (key) { ctx[key] = partial[key]; });
+    root.setAttribute("data-theme", ctx.theme === "light" ? "light" : "dark");
+    var box = ctx.containerDimensions || {};
+    var width = box.width || box.maxWidth || ctx.maxWidth || window.innerWidth;
+    root.classList.remove("size-s", "size-m", "size-l");
+    root.classList.add(width < 600 ? "size-s" : width >= 1000 ? "size-l" : "size-m");
+    var inset = ctx.safeAreaInsets || {};
+    ["top", "right", "bottom", "left"].forEach(function (side) {
+      root.style.setProperty("--inset-" + side.charAt(0), (inset[side] || 0) + "px");
+    });
+  }
+
+  function renderStrip(progress) {
+    var strip = byId("strip");
+    strip.replaceChildren();
+    ((progress || {}).steps || []).forEach(function (step) {
+      var item = G.el("li", { "data-state": step.state }, step.label);
+      if (step.state === "current") item.setAttribute("aria-current", "step");
+      if (step.state === "heard") item.setAttribute("aria-label", step.label + ", heard");
+      strip.appendChild(item);
+    });
+    strip.hidden = !strip.children.length;
+  }
+
+  function renderNext(labels) {
+    var next = byId("next");
+    next.replaceChildren();
+    if (!labels || !labels.length) return;
+    next.appendChild(G.el("span", { class: "label" }, "You can ask for"));
+    labels.slice(0, 5).forEach(function (label) {
+      var button = G.el("button", { type: "button" }, label);
+      button.disabled = closed;
+      button.addEventListener("click", function () {
+        if (closed) return;
+        request("ui/message", { role: "user", content: { type: "text", text: label } }).catch(function () {});
+      });
+      next.appendChild(button);
+    });
+  }
+
+  function textOf(result) {
+    return ((result && result.content) || []).map(function (block) { return block.text || ""; }).join(" ").trim();
+  }
+
+  function show(result) {
+    var data = (result && result.structuredContent) || {};
+    var content = byId("content");
+    byId("meta").replaceChildren();
+    if (data.title) byId("title").textContent = data.title;
+    renderStrip(data.progress);
+    content.replaceChildren();
+    var failed = !!(result && result.isError) || !!data.error;
+    try {
+      if (failed || !G.render) content.appendChild(G.calm(data.spoken || textOf(result) || "Nothing to show just now."));
+      else G.render(data, content, byId("meta"));
+    } catch (problem) {
+      content.replaceChildren(G.calm(data.spoken || textOf(result) || "Nothing to show just now."));
+    }
+    if (!content.children.length) content.appendChild(G.calm(data.spoken || "Nothing to show just now."));
+    renderNext(data.next_options);
+  }
+  G.show = show;
+
+  window.addEventListener("message", function (event) {
+    var message = event.data;
+    if (event.source !== window.parent || !message || message.jsonrpc !== "2.0") return;
+    if (message.id !== undefined && !message.method) {
+      var waiting = pending[message.id];
+      if (!waiting) return;
+      delete pending[message.id];
+      if (message.error) waiting.reject(message.error); else waiting.resolve(message.result);
+      return;
+    }
+    switch (message.method) {
+      case "ui/notifications/tool-input": G.input = (message.params || {}).arguments || {}; break;
+      case "ui/notifications/tool-result": show(message.params); break;
+      case "ui/notifications/tool-cancelled":
+        byId("content").replaceChildren(G.calm("That was stopped. Ask again whenever you like.")); break;
+      case "ui/notifications/host-context-changed": applyContext(message.params); break;
+      case "ui/resource-teardown":
+        closed = true;
+        [].forEach.call(document.querySelectorAll("button"), function (b) { b.disabled = true; });
+        post({ jsonrpc: "2.0", id: message.id, result: {} }); break;
+      case "ping": post({ jsonrpc: "2.0", id: message.id, result: {} }); break;
+    }
+  });
+
+  if (window.ResizeObserver) {
+    var timer = null;
+    new ResizeObserver(function () {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        var root = document.documentElement;
+        notify("ui/notifications/size-changed", { width: root.scrollWidth, height: root.scrollHeight });
+      }, 60);
+    }).observe(document.body);
+  }
+
+  applyContext({});
+  request("ui/initialize", {
+    appInfo: { name: "greeo-" + document.body.getAttribute("data-card"), version: "1.0.0" },
+    appCapabilities: { availableDisplayModes: ["inline"] },
+    protocolVersion: "2026-01-26"
+  }).then(function (result) {
+    applyContext((result && result.hostContext) || {});
+    notify("ui/notifications/initialized");
+  }).catch(function () { notify("ui/notifications/initialized"); });
+})();
+/* The tale: one beat in large type; the proverb is highlighted with its culture. */
+Greeo.render = function (data, content, meta) {
+  var G = Greeo, text = data.text || data.spoken || "";
+  if (data.tone_served) meta.appendChild(G.chip(data.tone_served + " telling", "fire"));
+  if (data.voice_name) meta.appendChild(G.chip(data.voice_name));
+  var parts = [], rest = text;
+  (data.proverbs_used || []).forEach(function (proverb) {
+    var at = proverb.spoken_form ? rest.indexOf(proverb.spoken_form) : -1;
+    if (at < 0) return;
+    parts.push(rest.slice(0, at), G.el("mark", {}, proverb.spoken_form),
+      G.el("span", { class: "badge" }, proverb.culture + " proverb"));
+    rest = rest.slice(at + proverb.spoken_form.length);
+  });
+  parts.push(rest);
+  content.appendChild(G.el("p", { class: "beat" }, parts));
+  var total = data.beats_total || 0, beat = data.beat || 0;
+  if (total > 1) {
+    var dots = [];
+    for (var i = 1; i <= total; i++) dots.push(G.el("i", { class: i < beat ? "done" : i === beat ? "now" : "" }));
+    content.appendChild(G.el("div", { class: "dots", role: "img", "aria-label": "Part " + beat + " of " + total }, dots));
+  }
+};
+</script>
+</body>
+</html>

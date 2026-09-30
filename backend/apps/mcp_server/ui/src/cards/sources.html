@@ -1,0 +1,28 @@
+<style>
+.evidence { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.evidence .headline { font: 400 1.05rem/1.35 var(--serif); }
+.evidence .who { font-weight: 700; }
+.group { display: flex; flex-direction: column; gap: 8px; }
+</style>
+<script>
+/* The sources: evidence cards grouped by what they support. Links are never shown. */
+Greeo.render = function (data, content) {
+  var G = Greeo, sources = data.sources || [];
+  if (!sources.length) { content.appendChild(G.calm("No sources are available for this story.")); return; }
+  var groups = [["facts", "Behind the facts"], ["context", "Behind the background"], ["perspectives", "Behind the perspectives"]];
+  groups.forEach(function (group) {
+    var cards = sources.filter(function (source) { return (source.supports || []).indexOf(group[0]) >= 0; });
+    if (!cards.length) return;
+    content.appendChild(G.el("section", { class: "group" }, [
+      G.el("h2", {}, group[1]),
+      G.el("div", { class: "evidence" }, cards.map(function (source) {
+        return G.el("article", { class: "panel" }, [
+          G.el("p", { class: "who" }, source.publisher),
+          G.el("p", { class: "headline" }, source.headline),
+          G.el("div", { class: "row" }, [G.chip(source.date)])
+        ]);
+      }))
+    ]));
+  });
+};
+</script>

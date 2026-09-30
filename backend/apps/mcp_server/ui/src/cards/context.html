@@ -1,0 +1,13 @@
+<style>
+.blocks { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+</style>
+<script>
+/* The background: labelled blocks for background, why it matters and what it could mean. */
+Greeo.render = function (data, content) {
+  var G = Greeo, items = data.context || [];
+  if (!items.length) { content.appendChild(G.calm("There is no further background for this story yet.")); return; }
+  content.appendChild(G.el("div", { class: "blocks" }, items.map(function (item) {
+    return G.el("section", { class: "panel" }, [G.el("h2", {}, item.label), G.el("p", {}, item.text), G.sources(item.sources)]);
+  })));
+};
+</script>

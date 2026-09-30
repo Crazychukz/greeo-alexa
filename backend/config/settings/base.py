@@ -171,6 +171,14 @@ MCP_ALLOWED_ORIGINS = [
 # Amazon's payload guidance: "no third-party tracking parameters, or upstream deep links".
 INCLUDE_SOURCE_URLS = env_bool("INCLUDE_SOURCE_URLS", False)
 
+# Simulator speech. Mock means no audio (the front end uses browser speech); Polly is
+# opt-in, like Bedrock, so a clean clone needs no AWS credentials.
+SPEECH_BACKEND = env("SPEECH_BACKEND", "mock")
+POLLY_VOICE_ID = env("POLLY_VOICE_ID", "Ayanda")
+POLLY_ENGINE = env("POLLY_ENGINE", "neural")
+SPEECH_RETRIES = env_int("SPEECH_RETRIES", 2)
+SPEECH_CACHE_SECONDS = env_int("SPEECH_CACHE_SECONDS", 86400)
+
 # LLM calls are permitted only through apps.llm.client. Mock is intentionally
 # the default so a clean local setup never requires cloud credentials.
 LLM_BACKEND = env("LLM_BACKEND", "mock")

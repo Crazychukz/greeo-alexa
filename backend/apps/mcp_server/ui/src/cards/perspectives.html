@@ -1,0 +1,17 @@
+<style>
+.views { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.views .panel { border-top: 4px solid var(--ember); }
+</style>
+<script>
+/* Perspectives: sourced viewpoints side by side; a calm note when the sources show none. */
+Greeo.render = function (data, content) {
+  var G = Greeo, views = data.perspectives || [];
+  if (!views.length) {
+    content.appendChild(G.calm("The sources do not show clearly different views, so none are invented here."));
+    return;
+  }
+  content.appendChild(G.el("div", { class: "views" }, views.map(function (view) {
+    return G.el("section", { class: "panel" }, [G.el("h2", {}, view.label), G.el("p", {}, view.summary), G.sources(view.sources)]);
+  })));
+};
+</script>

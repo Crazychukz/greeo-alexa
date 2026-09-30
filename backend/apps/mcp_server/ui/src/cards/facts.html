@@ -1,0 +1,17 @@
+<style>
+.facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; counter-reset: fact; }
+.facts li { counter-increment: fact; padding-left: 58px; position: relative; }
+.facts li::before { content: counter(fact); position: absolute; left: 14px; top: 14px; width: 30px; height: 30px; border-radius: 50%; background: var(--fire); color: var(--on-fire); font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.facts p { font-size: 1.1rem; }
+</style>
+<script>
+/* The facts: what actually happened, each with who reported it and when. */
+Greeo.render = function (data, content) {
+  var G = Greeo, facts = data.facts || [];
+  if (!facts.length) { content.appendChild(G.calm("No checked facts are available for this story yet.")); return; }
+  content.appendChild(G.el("h2", {}, "What actually happened"));
+  content.appendChild(G.el("ol", { class: "facts" }, facts.map(function (fact) {
+    return G.el("li", { class: "panel" }, [G.el("p", {}, fact.text), G.sources(fact.sources)]);
+  })));
+};
+</script>

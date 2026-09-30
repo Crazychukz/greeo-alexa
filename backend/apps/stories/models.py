@@ -11,6 +11,7 @@ from django.utils import timezone
 from apps.core.ids import story_id
 
 from .managers import StoryManager
+from .voices import VoiceStyle, voice_for, voice_problems
 
 
 class Story(models.Model):
@@ -146,6 +147,9 @@ class StoryTelling(models.Model):
         max_length=10, choices=ClosingKind.choices, default=ClosingKind.REFLECTION
     )
     moral = models.CharField(max_length=200, blank=True)
+    # The storyteller voice this telling was written in (see stories/voices.py). Blank
+    # means the default voice for the tone.
+    voice_style = models.CharField(max_length=24, blank=True)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
     is_curated = models.BooleanField(default=False)
     checker_report = models.JSONField(default=dict, blank=True)
@@ -158,6 +162,15 @@ class StoryTelling(models.Model):
     def clean(self) -> None:
         if self.story.tone_class == Story.ToneClass.SENSITIVE and self.tone == self.Tone.LIGHT:
             raise ValidationError({"tone": "Light tone is not allowed for sensitive stories."})
+        if self.voice_style:
+            problems = voice_problems(self.voice_style, self.tone, self.story.tone_class)
+            if problems:
+                raise ValidationError({"voice_style": problems})
+
+    @property
+    def voice(self) -> VoiceStyle:
+        """The stored voice when it fits this tone and story, else the default."""
+        return voice_for(self.tone, self.story.tone_class, self.voice_style or None)
 
 
 class TellingBeat(models.Model):

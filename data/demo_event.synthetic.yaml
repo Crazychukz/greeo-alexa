@@ -65,6 +65,7 @@ tellings:
     closing_kind: reflection
     closing_text: A crossing built together is carried together.
   serious:
+    voice: hopeful_healer
     beats:
       - >-
         In Veloria, the Pell River flooded most years, and the children crossed it by

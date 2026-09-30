@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greeo cards: dev harness</title>
+<style>
+  body { font: 15px/1.4 system-ui, sans-serif; margin: 0; background: #20242f; color: #eee; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 16px; background: #151821; }
+  label { display: flex; gap: 6px; align-items: center; }
+  select, button { font: inherit; padding: 4px 8px; }
+  main { padding: 16px; display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  iframe { border: 1px solid #555; border-radius: 8px; background: #000; }
+  pre { flex: 1 1 260px; max-height: 480px; overflow: auto; background: #151821; padding: 12px; border-radius: 8px; font-size: 12px; margin: 0; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Greeo cards</strong>
+  <label>Card <select id="card"></select></label>
+  <label>Scenario <select id="scenario"></select></label>
+  <label>Theme <select id="theme"><option>dark</option><option>light</option></select></label>
+  <label>Canvas <select id="canvas">
+    <option value="768x480">768 x 480 (base)</option>
+    <option value="1280x800">1280 x 800 (large screen)</option>
+    <option value="390x700">390 x 700 (phone)</option>
+  </select></label>
+  <button id="teardown" type="button">End session</button>
+</header>
+<main>
+  <iframe id="frame" title="Card under test" sandbox="allow-scripts"></iframe>
+  <pre id="log" aria-label="Messages between host and card"></pre>
+</main>
+<script>
+/* A minimal MCP Apps host for development. All data below is SYNTHETIC. */
+(function () {
+  "use strict";
+  var strip = function (current, closing) {
+    var keys = [["tale", "TALE"], ["closing", closing || "REFLECTION"], ["proverbs", "PROVERBS"], ["facts", "FACTS"],
+      ["context", "CONTEXT"], ["perspectives", "PERSPECTIVES"], ["sources", "SOURCES"]];
+    var seen = true;
+    return { current: current, steps: keys.map(function (k) {
+      var state = k[0] === current ? "current" : seen ? "heard" : "ahead";
+      if (k[0] === current) seen = false;
+      return { key: k[0], label: k[1], state: state };
+    }) };
+  };
+  var title = "SYNTHETIC EVENT: The Lantern Footbridge of Veloria";
+  var refs = [{ publisher: "Synthetic Gazette", date: "12 March 2026" }];
+  var proverbs = [
+    { slot: "P1", spoken_form: "Test proverb one is spoken here.", original_text: "TEST PROVERB 1", language: "Synthetic language",
+      culture: "Synthetic culture", meaning: "SYNTHETIC meaning note for testing only.", source_citation: "Synthetic citation one", verification_status: "verified" },
+    { slot: "P2", spoken_form: "Test proverb two is spoken here.", original_text: "TEST PROVERB 2", language: "Synthetic language",
+      culture: "Synthetic culture", meaning: "SYNTHETIC second meaning note.", source_citation: "Synthetic citation two", verification_status: "single_source" }
+  ];
+  var ok = function (data) { return { content: [{ type: "text", text: data.spoken }], structuredContent: data }; };
+  var failed = { isError: true, content: [{ type: "text", text: "I couldn't find that story. You can ask for today's stories, or search for a topic." }],
+    structuredContent: { error: "unknown_story", spoken: "I couldn't find that story. You can ask for today's stories, or search for a topic.", next_options: ["today's stories"] } };
+  var beat = "Listen. In Veloria, the Pell River ran wide and cold, and the children crossed it by canoe to reach school. The elders say Test proverb one is spoken here.";
+
+  var SCENARIOS = {
+    tale: {
+      "beat 1 of 3 with proverb": ok({ spoken: beat, text: beat, title: title, story_id: "st_demo", progress: strip("tale"), beat: 1, beats_total: 3, has_more: true,
+        tone_served: "balanced", proverbs_used: [{ slot: "P1", culture: "Synthetic culture", spoken_form: "Test proverb one is spoken here." }], next_options: ["continue", "the facts"] }),
+      "last beat, no proverb": ok({ spoken: "So 300 households gathered what they had.", text: "So 300 households gathered what they had.", title: title, story_id: "st_demo",
+        progress: strip("tale", "MORAL"), beat: 3, beats_total: 3, has_more: false, tone_served: "serious", proverbs_used: [], next_options: ["the moral", "the facts"] }),
+      "missing data": ok({ spoken: "A beat with almost no data." }),
+      "error": failed
+    },
+    wisdom: {
+      "reflection and two proverbs": ok({ spoken: "A crossing built together is carried together.", title: title, story_id: "st_demo", progress: strip("closing"),
+        closing_kind: "reflection", text: "A crossing built together is carried together.", proverbs: proverbs, next_options: ["the proverb explained", "the facts"] }),
+      "proverb explained (second chosen)": ok({ spoken: "This proverb comes from the Synthetic culture people.", title: title, story_id: "st_demo", progress: strip("proverbs"),
+        has_proverb: true, which: 2, proverbs_total: 2, proverbs: proverbs, next_options: ["the facts", "the sources"] }),
+      "moral, no proverb": ok({ spoken: "Patience builds what haste cannot.", title: title, story_id: "st_demo", progress: strip("closing", "MORAL"),
+        closing_kind: "moral", text: "Patience builds what haste cannot.", proverbs: [], next_options: ["the facts"] }),
+      "empty: no closing, no proverb": ok({ spoken: "This tale didn't use a proverb.", title: title, story_id: "st_demo", progress: strip("proverbs"),
+        has_proverb: false, which: 1, proverbs_total: 0, proverbs: [], next_options: ["the facts"] }),
+      "error": failed
+    },
+    facts: {
+      "three facts": ok({ spoken: "Residents of Veloria opened a footbridge.", title: title, story_id: "st_demo", progress: strip("facts"), next_options: ["the background", "the sources"],
+        facts: [{ text: "SYNTHETIC. Residents of Veloria opened a footbridge over the Pell River on 12 March 2026.", sources: refs },
+          { text: "SYNTHETIC. The bridge took 14 months to build and was paid for by 300 households.", sources: refs },
+          { text: "SYNTHETIC. Before the bridge, children crossed the river by canoe to reach school.", sources: [{ publisher: "Synthetic Courier", date: "10 March 2026" }] }] }),
+      "empty": ok({ spoken: "No facts yet.", title: title, story_id: "st_demo", progress: strip("facts"), facts: [], next_options: ["another story"] }),
+      "error": failed
+    },
+    context: {
+      "three blocks": ok({ spoken: "Some background.", title: title, story_id: "st_demo", progress: strip("context"), next_options: ["different perspectives"],
+        context: [{ kind: "background", label: "Some background", text: "SYNTHETIC. The old crossing flooded most years.", sources: refs },
+          { kind: "why_it_matters", label: "Why it matters", text: "SYNTHETIC. Children can now reach school in every season.", sources: refs },
+          { kind: "consequence", label: "What it could mean", text: "SYNTHETIC. Nearby villages are planning crossings of their own.", sources: refs }] }),
+      "empty": ok({ spoken: "I don't have more background on this story yet.", title: title, story_id: "st_demo", progress: strip("context"), context: [], next_options: ["the sources"] }),
+      "error": failed
+    },
+    perspectives: {
+      "two views": ok({ spoken: "Two views.", title: title, story_id: "st_demo", progress: strip("perspectives"), next_options: ["the sources"],
+        perspectives: [{ label: "Bridge committee", summary: "SYNTHETIC. Organisers describe the bridge as shared work by many families.", sources: refs },
+          { label: "Canoe operators", summary: "SYNTHETIC. Boat owners describe losing fares now that children walk across.", sources: [{ publisher: "Synthetic Courier", date: "10 March 2026" }] }] }),
+      "empty": ok({ spoken: "The sources don't show clearly different views.", title: title, story_id: "st_demo", progress: strip("perspectives"), perspectives: [], next_options: ["the sources"] }),
+      "error": failed
+    },
+    sources: {
+      "two sources": ok({ spoken: "This story draws on 2 sources.", title: title, story_id: "st_demo", progress: strip("sources"), next_options: ["another story"],
+        sources: [{ publisher: "Synthetic Gazette", headline: "SYNTHETIC: Veloria footbridge opens", date: "12 March 2026", supports: ["facts", "perspectives"], url: null },
+          { publisher: "Synthetic Courier", headline: "SYNTHETIC: Life at the old Pell River crossing", date: "10 March 2026", supports: ["facts", "context", "perspectives"], url: null }] }),
+      "empty": ok({ spoken: "I don't have sources to share for this story.", title: title, story_id: "st_demo", progress: strip("sources"), sources: [], next_options: ["another story"] }),
+      "error": failed
+    }
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var frame = $("frame"), log = $("log");
+  function record(direction, message) {
+    log.textContent += direction + " " + JSON.stringify(message).slice(0, 220) + "\n";
+    log.scrollTop = log.scrollHeight;
+  }
+  function send(message) { record("host ->", message); frame.contentWindow.postMessage(message, "*"); }
+  function hostContext() {
+    var size = $("canvas").value.split("x");
+    return { theme: $("theme").value, displayMode: "inline", availableDisplayModes: ["inline"],
+      containerDimensions: { width: Number(size[0]), maxHeight: Number(size[1]) }, locale: "en-GB", platform: "web" };
+  }
+  function load() {
+    var size = $("canvas").value.split("x");
+    frame.width = size[0]; frame.height = size[1];
+    log.textContent = "";
+    frame.src = "dist/" + $("card").value + ".html?" + Date.now();
+  }
+  function fillScenarios() {
+    $("scenario").replaceChildren.apply($("scenario"), Object.keys(SCENARIOS[$("card").value]).map(function (name) {
+      var option = document.createElement("option"); option.textContent = name; return option;
+    }));
+  }
+
+  window.addEventListener("message", function (event) {
+    var message = event.data;
+    if (event.source !== frame.contentWindow || !message || message.jsonrpc !== "2.0") return;
+    record("card ->", message);
+    if (message.method === "ui/initialize") {
+      send({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2026-01-26", hostInfo: { name: "greeo-dev-harness", version: "1.0.0" },
+        hostCapabilities: {}, hostContext: hostContext() } });
+    } else if (message.method === "ui/notifications/initialized") {
+      send({ jsonrpc: "2.0", method: "ui/notifications/tool-input", params: { arguments: { story_id: "st_demo" } } });
+      send({ jsonrpc: "2.0", method: "ui/notifications/tool-result", params: SCENARIOS[$("card").value][$("scenario").value] });
+    } else if (message.method === "ui/message") {
+      send({ jsonrpc: "2.0", id: message.id, result: {} });
+    }
+  });
+
+  Object.keys(SCENARIOS).forEach(function (name) {
+    var option = document.createElement("option"); option.textContent = name; $("card").appendChild(option);
+  });
+  $("card").addEventListener("change", function () { fillScenarios(); load(); });
+  $("scenario").addEventListener("change", load);
+  $("canvas").addEventListener("change", load);
+  $("theme").addEventListener("change", function () {
+    send({ jsonrpc: "2.0", method: "ui/notifications/host-context-changed", params: { theme: $("theme").value } });
+  });
+  $("teardown").addEventListener("click", function () {
+    send({ jsonrpc: "2.0", id: 9001, method: "ui/resource-teardown", params: { reason: "session ended" } });
+  });
+  var wanted = new URLSearchParams(location.search);
+  fillScenarios();
+  if (wanted.get("card") && SCENARIOS[wanted.get("card")]) { $("card").value = wanted.get("card"); fillScenarios(); }
+  if (wanted.get("scenario")) $("scenario").selectedIndex = Number(wanted.get("scenario")) || 0;
+  if (wanted.get("theme")) $("theme").value = wanted.get("theme");
+  load();
+})();
+</script>
+</body>
+</html>

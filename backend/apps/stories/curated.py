@@ -35,6 +35,7 @@ from .models import (
     TellingBeat,
     TellingProverb,
 )
+from .voices import voice_problems
 
 TONES = ("light", "balanced", "serious")
 
@@ -89,6 +90,7 @@ class TellingIn(Strict):
     beats: list[str]
     closing_kind: Literal["moral", "reflection", "none"]
     closing_text: str = ""
+    voice: str | None = None
 
 
 class CuratedEvent(Strict):
@@ -203,6 +205,8 @@ def validate_curated_event(event: CuratedEvent, *, synthetic: bool) -> Report:
     for tone, telling in event.tellings.items():
         where = f"tellings.{tone}"
         report.extend(where, validators.check_beats(telling.beats, spoken_by_slot))
+        if telling.voice:
+            report.extend(f"{where}.voice", voice_problems(telling.voice, tone, info.tone_class))
         for index, beat in enumerate(telling.beats, start=1):
             beat_where = f"{where}.beats[{index}]"
             report.extend(beat_where, validators.check_faithfulness(beat, sources))
@@ -412,6 +416,7 @@ def _write_tellings(event: CuratedEvent, story: Story) -> None:
             tone=tone,
             closing_kind=telling_in.closing_kind,
             moral=telling_in.closing_text,
+            voice_style=telling_in.voice or "",
             status=StoryTelling.Status.PUBLISHED,
             is_curated=True,
             checker_report={"source": "curated", "validators": "passed"},

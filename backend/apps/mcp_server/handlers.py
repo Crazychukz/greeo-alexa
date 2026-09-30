@@ -98,6 +98,66 @@ def explore(user: EndUser | None, story: Story, layer: str, *defaults: str) -> l
     return next_options
 
 
+STEP_LABELS = {
+    "tale": "TALE",
+    "proverbs": "PROVERBS",
+    "facts": "FACTS",
+    "context": "CONTEXT",
+    "perspectives": "PERSPECTIVES",
+    "sources": "SOURCES",
+}
+
+
+def card_fields(
+    user: EndUser | None, story: Story, current: str, telling: StoryTelling | None = None
+) -> dict:
+    """story_id, title and the progress strip. Call after memory is updated.
+
+    The closing step is labelled MORAL only when the telling's closing is a moral.
+    """
+    if telling is None:
+        telling = memory.published_telling(story, listening_tone(user, story))
+    heard = memory.explored_layers(user, story) if user else set()
+    is_moral = bool(telling and telling.closing_kind == StoryTelling.ClosingKind.MORAL)
+    labels = {**STEP_LABELS, "closing": "MORAL" if is_moral else "REFLECTION"}
+    steps = [
+        schemas.LayerStep(
+            key=layer,
+            label=labels[layer],
+            state="current" if layer == current else "heard" if layer in heard else "ahead",
+        )
+        for layer in memory.available_layers(story, telling.tone if telling else None)
+    ]
+    return {
+        "story_id": story.pk,
+        "title": story.handle,
+        "progress": schemas.LayerProgress(current=current, steps=steps),
+    }
+
+
+def proverb_details(telling: StoryTelling | None) -> list[schemas.ProverbDetail]:
+    """Every servable proverb in a telling, in slot order; unservable ones are never shown."""
+    if telling is None:
+        return []
+    links = sorted(
+        telling.proverb_links.select_related("proverb"), key=lambda link: int(link.slot[1:])
+    )
+    return [
+        schemas.ProverbDetail(
+            slot=link.slot,
+            spoken_form=link.proverb.spoken_form,
+            original_text=link.proverb.original_text,
+            language=link.proverb.language,
+            culture=link.proverb.culture,
+            meaning=link.proverb.meaning_note,
+            source_citation=link.proverb.source_citation,
+            verification_status=link.proverb.verification_status,
+        )
+        for link in links
+        if link.proverb_is_servable
+    ]
+
+
 def closing_label(telling: StoryTelling | None) -> str | None:
     if telling and telling.closing_kind != StoryTelling.ClosingKind.NONE and telling.moral:
         return f"the {telling.closing_kind}"
@@ -272,15 +332,17 @@ def _beat_result(user, story, telling, rendered, beat, total) -> schemas.TaleBea
     return schemas.TaleBeat(
         spoken=rendered.text,
         next_options=next_options,
-        story_id=story.pk,
-        title=story.handle,
+        **card_fields(user, story, "tale", telling),
         beat=beat,
         beats_total=total,
         has_more=has_more,
         tone_served=telling.tone,
+        voice_style=telling.voice.key,
+        voice_name=telling.voice.name,
         text=rendered.text,
         proverbs_used=[
-            schemas.ProverbFlag(slot=ref.slot, culture=ref.culture) for ref in rendered.proverbs
+            schemas.ProverbFlag(slot=ref.slot, culture=ref.culture, spoken_form=ref.spoken_form)
+            for ref in rendered.proverbs
         ],
     )
 
@@ -301,7 +363,8 @@ def get_moral(user: EndUser | None, *, story_id: str | None = None) -> schemas.C
     return schemas.ClosingThought(
         spoken=spoken,
         next_options=next_options,
-        story_id=story.pk,
+        **card_fields(user, story, "closing", telling),
+        proverbs=proverb_details(telling),
         closing_kind=kind,
         text=text,
         proverb_note=proverb_note,
@@ -323,7 +386,7 @@ def explain_proverb(
         return schemas.ProverbExplanation(
             spoken="This tale didn't use a proverb. You can hear what actually happened instead.",
             next_options=next_options,
-            story_id=story.pk,
+            **card_fields(user, story, "proverbs", telling),
             has_proverb=False,
             which=which,
             proverbs_total=0,
@@ -354,7 +417,8 @@ def explain_proverb(
     return schemas.ProverbExplanation(
         spoken=spoken,
         next_options=next_options,
-        story_id=story.pk,
+        **card_fields(user, story, "proverbs", telling),
+        proverbs=proverb_details(telling),
         has_proverb=True,
         which=which,
         proverbs_total=len(links),
@@ -394,7 +458,7 @@ def get_facts(user: EndUser | None, *, story_id: str | None = None) -> schemas.F
     return schemas.FactList(
         spoken=f"{spoken} {attribution}".strip(),
         next_options=next_options,
-        story_id=story.pk,
+        **card_fields(user, story, "facts"),
         facts=items,
     )
 
@@ -419,7 +483,10 @@ def get_context(user: EndUser | None, *, story_id: str | None = None) -> schemas
         spoken = "I don't have more background on this story yet. You can hear the sources instead."
     next_options = explore(user, story, "context", "different perspectives", "the sources")
     return schemas.ContextList(
-        spoken=spoken, next_options=next_options, story_id=story.pk, context=items
+        spoken=spoken,
+        next_options=next_options,
+        context=items,
+        **card_fields(user, story, "context"),
     )
 
 
@@ -446,7 +513,10 @@ def get_perspectives(
         )
     next_options = explore(user, story, "perspectives", "the sources", "the facts")
     return schemas.PerspectiveList(
-        spoken=spoken, next_options=next_options, story_id=story.pk, perspectives=items
+        spoken=spoken,
+        next_options=next_options,
+        perspectives=items,
+        **card_fields(user, story, "perspectives"),
     )
 
 
@@ -477,7 +547,10 @@ def get_sources(user: EndUser | None, *, story_id: str | None = None) -> schemas
         spoken = "I don't have sources to share for this story."
     next_options = explore(user, story, "sources", "the facts", "another story")
     return schemas.SourceList(
-        spoken=spoken, next_options=next_options, story_id=story.pk, sources=sources
+        spoken=spoken,
+        next_options=next_options,
+        sources=sources,
+        **card_fields(user, story, "sources"),
     )
 
 

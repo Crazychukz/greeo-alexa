@@ -30,7 +30,7 @@ keeps its id, so listeners' memory of it survives.
 | `context[]` | `kind`, `text`, `evidence[]` | Optional. `kind` is `background`, `why_it_matters` or `consequence`. |
 | `perspectives[]` | `label`, `summary`, `evidence[]` | Optional. Stored only if all perspectives together cite two or more publishers. |
 | `proverbs` | slot (`P1`, `P2`, ...) to `{id, role}` | Optional. `id` is an existing verified, tone-approved proverb. `role` is `opening`, `turn` or `closing`. |
-| `tellings` | `balanced` (required), `light`, `serious` | Each has `beats[]`, `closing_kind` and `closing_text`. |
+| `tellings` | `balanced` (required), `light`, `serious` | Each has `beats[]`, `closing_kind`, `closing_text` and an optional `voice`. |
 
 Unknown keys are errors, so a typo such as `regoin` is caught rather than ignored.
 
@@ -64,6 +64,15 @@ A telling is 3 to 5 beats. Each beat is spoken on its own, so each must stand al
 - No phrase from `data/banned_phrases.txt`.
 - Voice follows `docs/GRIOT_STYLE_GUIDE.md`: no faux dialect, no treating Africa as one
   voice. A proverb's culture is named by its own record, never by the telling.
+
+### Voices and shape
+
+Each telling may name a `voice`: `moonlight_elder`, `village_fire`, `wise_judge`,
+`hopeful_healer` or `playful_trickster`. Leave it out to use the default for the tone.
+The loader rejects a voice that does not suit the tone or the story (for example the
+Playful Trickster on a serious telling, or the Wise Judge on a sensitive story). The
+voices and the beat-by-beat shape of a tale (opening, trouble, turning point,
+resolution) are described in `docs/GRIOT_STYLE_GUIDE.md`.
 
 ### The closing
 

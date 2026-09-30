@@ -1,0 +1,34 @@
+<style>
+.closing { font: italic 400 clamp(1.25rem, 3.2vw, 1.75rem)/1.45 var(--serif); border-left: 4px solid var(--fire); padding-left: 16px; }
+.proverb .said { font: 400 1.25rem/1.4 var(--serif); color: var(--fire); }
+.proverb .original { font-style: italic; color: var(--muted); }
+.proverb.chosen { border-color: var(--fire); }
+.proverb small { color: var(--muted); font-size: .75rem; }
+</style>
+<script>
+/* The wisdom: the closing thought, then each proverb with its culture, meaning and source. */
+Greeo.render = function (data, content) {
+  var G = Greeo, proverbs = data.proverbs || [];
+  if (data.text && data.closing_kind && data.closing_kind !== "none") {
+    content.appendChild(G.el("h2", {}, data.closing_kind === "moral" ? "The moral" : "A reflection"));
+    content.appendChild(G.el("p", { class: "closing" }, data.text));
+  }
+  proverbs.forEach(function (proverb, index) {
+    var chosen = data.which === index + 1 ? " chosen" : "";
+    var status = proverb.verification_status === "verified" ? "Verified in two sources" : "Single source";
+    content.appendChild(G.el("article", { class: "panel proverb" + chosen }, [
+      G.el("div", { class: "row" }, [G.chip(proverb.culture, "fire"), G.chip(proverb.language)]),
+      G.el("p", { class: "said" }, proverb.spoken_form),
+      proverb.original_text && proverb.original_text !== proverb.spoken_form
+        ? G.el("p", { class: "original" }, proverb.original_text) : null,
+      G.el("p", {}, proverb.meaning),
+      G.el("small", {}, status + " · " + proverb.source_citation)
+    ]));
+  });
+  if (!proverbs.length) {
+    content.appendChild(G.calm(content.children.length
+      ? "This tale carried no proverb."
+      : "This tale carried no proverb. Its facts speak for themselves."));
+  }
+};
+</script>

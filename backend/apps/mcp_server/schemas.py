@@ -20,6 +20,27 @@ class Envelope(BaseModel):
     )
 
 
+class LayerStep(BaseModel):
+    key: str
+    label: str
+    state: str = Field(description="current, heard, or ahead")
+
+
+class LayerProgress(BaseModel):
+    """Which layers this story has and where the listener is, for the card's progress strip."""
+
+    current: str
+    steps: list[LayerStep]
+
+
+class StoryEnvelope(Envelope):
+    """Fields every story card needs: which story, its title and the listener's progress."""
+
+    story_id: str
+    title: str
+    progress: LayerProgress
+
+
 class StoryListing(BaseModel):
     story_id: str
     title: str
@@ -35,28 +56,44 @@ class StoryList(Envelope):
 class ProverbFlag(BaseModel):
     slot: str
     culture: str
+    spoken_form: str = Field(description="The proverb as spoken in the beat, for highlighting.")
 
 
-class TaleBeat(Envelope):
-    story_id: str
-    title: str
+class ProverbDetail(BaseModel):
+    slot: str
+    spoken_form: str
+    original_text: str
+    language: str
+    culture: str
+    meaning: str
+    source_citation: str
+    verification_status: str
+
+
+class TaleBeat(StoryEnvelope):
     beat: int
     beats_total: int
     has_more: bool
     tone_served: str
+    voice_style: str = Field(
+        description="Key of the storyteller voice, for hosts that pace speech."
+    )
+    voice_name: str
     text: str = Field(description="The beat exactly as written, proverb included, for cards.")
     proverbs_used: list[ProverbFlag]
 
 
-class ClosingThought(Envelope):
-    story_id: str
+class ClosingThought(StoryEnvelope):
     closing_kind: str = Field(description="moral, reflection, or none")
     text: str
     proverb_note: str
+    proverbs: list[ProverbDetail] = Field(default_factory=list)
 
 
-class ProverbExplanation(Envelope):
-    story_id: str
+class ProverbExplanation(StoryEnvelope):
+    proverbs: list[ProverbDetail] = Field(
+        default_factory=list, description="Every proverb in this telling, for the card."
+    )
     has_proverb: bool
     which: int
     proverbs_total: int
@@ -79,8 +116,7 @@ class FactItem(BaseModel):
     sources: list[SourceRef]
 
 
-class FactList(Envelope):
-    story_id: str
+class FactList(StoryEnvelope):
     facts: list[FactItem]
 
 
@@ -91,8 +127,7 @@ class ContextItem(BaseModel):
     sources: list[SourceRef]
 
 
-class ContextList(Envelope):
-    story_id: str
+class ContextList(StoryEnvelope):
     context: list[ContextItem]
 
 
@@ -102,8 +137,7 @@ class PerspectiveItem(BaseModel):
     sources: list[SourceRef]
 
 
-class PerspectiveList(Envelope):
-    story_id: str
+class PerspectiveList(StoryEnvelope):
     perspectives: list[PerspectiveItem]
 
 
@@ -119,8 +153,7 @@ class SourceCard(BaseModel):
     )
 
 
-class SourceList(Envelope):
-    story_id: str
+class SourceList(StoryEnvelope):
     sources: list[SourceCard]
 
 

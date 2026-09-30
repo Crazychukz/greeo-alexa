@@ -21,6 +21,7 @@ from typing import Annotated, Any, Literal
 from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.db import close_old_connections, connection
+from mcp.server.apps import Apps
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp_types import CallToolResult, TextContent, ToolAnnotations
@@ -31,7 +32,7 @@ from starlette.responses import JSONResponse
 
 from apps.core.services import get_health_report
 
-from . import handlers, schemas
+from . import handlers, schemas, ui_build
 from .identity import current_user
 from .voice import BeatTooLongError, VoiceSafetyError, finalize, friendly_error
 
@@ -428,22 +429,58 @@ TOOLS: list[tuple[Callable[..., Any], str, str, ToolAnnotations]] = [
 ]
 
 
+# Which card renders each tool's result (MCP Apps). Tools not listed are voice-only.
+CARD_FOR_TOOL = {
+    "tell_tale": "tale",
+    "get_moral": "wisdom",
+    "explain_proverb": "wisdom",
+    "get_facts": "facts",
+    "get_context": "context",
+    "get_perspectives": "perspectives",
+    "get_sources": "sources",
+}
+
+
+def build_apps() -> Apps:
+    """Register the six cards as `ui://` resources served as `text/html;profile=mcp-app`.
+
+    Each card is one self-contained file with no network access, so no CSP domains are
+    declared and the host's restrictive default policy applies.
+    """
+    apps = Apps()
+    for name, (title, description) in ui_build.CARDS.items():
+        apps.add_html_resource(
+            ui_build.card_uri(name),
+            ui_build.read_dist(name),
+            name=f"greeo-{name}",
+            title=title,
+            description=description,
+            prefers_border=False,
+        )
+    return apps
+
+
 def build_server() -> MCPServer:
     server = MCPServer(
         name="greeo",
         title="Greeo",
         description="News retold as voice-first tales with verified proverbs and checkable facts.",
         instructions=INSTRUCTIONS,
-        version="0.8.0",
+        version="0.10.0",
         middleware=[friendly_errors],
+        extensions=[build_apps()],
     )
     for fn, title, description, annotations in TOOLS:
+        card = CARD_FOR_TOOL.get(fn.__name__)
         server.add_tool(
             fn,
             name=fn.__name__,
             title=title,
             description=description + SPOKEN_NOTE,
             annotations=annotations,
+            # The spec's link from a tool to its UI resource. Results are identical with or
+            # without a card, so hosts without MCP Apps keep the full spoken text.
+            meta={"ui": {"resourceUri": ui_build.card_uri(card)}} if card else None,
             structured_output=True,
         )
 
