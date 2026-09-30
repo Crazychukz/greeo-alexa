@@ -334,3 +334,14 @@ def test_publisher_names_differing_only_in_case_count_once() -> None:
     assert result.story.perspectives.count() == 0
     assert any("fewer than two publishers" in w for w in result.warnings)
     assert SourceFeed.objects.filter(feed_url="curated://synthetic-gazette").count() == 1
+
+
+def test_forbidden_voice_vocabulary_is_rejected_at_load() -> None:
+    data = fixture_data()
+    data["facts"][0]["text"] += " A new tool was used."
+    balanced_beats(data)[1] = "So 300 households said null to waiting."
+
+    errors = errors_for(data)
+
+    assert "facts[1]: contains 'tool'" in errors
+    assert "contains 'null'" in errors

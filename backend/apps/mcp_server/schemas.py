@@ -122,3 +122,31 @@ class SourceCard(BaseModel):
 class SourceList(Envelope):
     story_id: str
     sources: list[SourceCard]
+
+
+class SaveResult(Envelope):
+    story_id: str
+    title: str
+    saved: bool
+
+
+class SavedStory(BaseModel):
+    story_id: str
+    title: str
+    saved: bool
+    tone: str
+    last_beat: int
+    beats_total: int
+    tale_completed: bool
+    resume_hint: str
+
+
+class SavedList(Envelope):
+    stories: list[SavedStory]
+
+
+class PreferencesResult(Envelope):
+    tone: str | None
+    regions: list[str]
+    topics: list[str]
+    reset: bool

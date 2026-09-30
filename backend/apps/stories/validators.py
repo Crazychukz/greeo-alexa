@@ -15,6 +15,7 @@ from pathlib import Path
 
 from django.conf import settings
 
+from apps.core.speech import forbidden_words
 from apps.wisdom.rendering import SLOT_PATTERN, find_slots
 
 MIN_BEATS = 3
@@ -212,6 +213,12 @@ def perspective_publishers(
         for key in keys
         if key in publisher_by_key
     }
+
+
+def check_voice_vocabulary(text: str) -> list[str]:
+    """Words Alexa+ forbids in customer speech; caught here, not when a listener asks."""
+    found = forbidden_words(SLOT_PATTERN.sub(" ", text))
+    return [f"contains {word!r}, which Greeo never says aloud; rephrase it." for word in found]
 
 
 def check_banned_phrases(text: str, phrases: Iterable[str]) -> list[str]:

@@ -21,7 +21,7 @@ from apps.stories.models import Story, StoryContext, StoryTelling
 from apps.wisdom.rendering import RenderingError, render_beat
 
 from . import schemas
-from .voice import human_date, join_within, options
+from .voice import friendly_error, human_date, join_within, options, paginate
 
 PAGE_SIZE = 5
 CONTEXT_LABELS = {
@@ -40,6 +40,12 @@ class FriendlyError(Exception):
         self.spoken = spoken
         self.next_options = options(*next_options)
 
+    @classmethod
+    def known(cls, kind: str, hint: str | None = None) -> FriendlyError:
+        """One of the standard messages in voice.FRIENDLY_ERRORS."""
+        spoken, next_options = friendly_error(kind, hint)
+        return cls(kind, spoken, next_options)
+
 
 # Lookups ------------------------------------------------------------------------------
 
@@ -51,12 +57,21 @@ def published_stories():
 def find_story(story_id: str) -> Story:
     story = published_stories().filter(pk=story_id).first()
     if story is None:
-        raise FriendlyError(
-            "unknown_story",
-            "I couldn't find that story. You can ask for today's stories, or search for a topic.",
-            ["today's stories"],
-        )
+        raise FriendlyError.known("unknown_story")
     return story
+
+
+def resolve_story(user: EndUser | None, story_id: str | None) -> Story:
+    """The named story, else the one in this listener's session, else a helpful re-prompt.
+
+    Alexa+ asks that missing or expired context never dead-ends the conversation.
+    """
+    if story_id:
+        return find_story(story_id)
+    last = memory.get_session_context(user).last_story_id if user else None
+    if last:
+        return find_story(last)
+    raise FriendlyError.known("which_story")
 
 
 def listening_tone(user: EndUser | None, story: Story) -> str:
@@ -155,18 +170,17 @@ def get_briefing(
 def _story_page(
     user: EndUser | None, stories: list[Story], page: int, *, found: str | None
 ) -> schemas.StoryList:
-    start = (page - 1) * PAGE_SIZE
-    chunk = stories[start : start + PAGE_SIZE]
+    result = paginate(stories, page, PAGE_SIZE)
+    chunk, has_more = result.items, result.has_more
     if not chunk:
         raise FriendlyError(
-            "no_more_results", "That's all the stories I have for now.", ["start again"]
+            "no_more_results", "That's all the stories I have for now.", ["today's stories"]
         )
-    has_more = start + PAGE_SIZE < len(stories)
     titles = [story.handle for story in chunk]
     intro = f"Here's what I found about {found}:" if found else "Here are today's stories:"
     sentences = [intro, *(f"{title}." for title in titles), "Which one would you like to hear?"]
     spoken = join_within(sentences, more="Which one would you like to hear?")
-    next_options = options(*titles[:4], "more stories" if has_more else None)
+    next_options = options(*titles[:4], result.next_page_hint)
     if user is not None:
         memory.update_session_context(user, last_options=next_options)
     return schemas.StoryList(
@@ -185,11 +199,26 @@ def _story_page(
 
 
 def tell_tale(
-    user: EndUser | None, *, story_id: str, beat: int = 1, tone: str | None = None
+    user: EndUser | None,
+    *,
+    story_id: str | None = None,
+    beat: int | None = None,
+    tone: str | None = None,
 ) -> schemas.TaleBeat:
-    """One beat of the tale, rendered with verified proverbs; progress is remembered."""
-    story = find_story(story_id)
-    wanted = memory.preferred_tone(user, tone) if user else (tone or memory.DEFAULT_TONE)
+    """One beat of the tale, rendered with verified proverbs; progress is remembered.
+
+    With no beat, a listener continues where they stopped, in the tone they were hearing;
+    otherwise the tone is the argument, then their preference, then balanced.
+    """
+    story = resolve_story(user, story_id)
+    encounter = StoryEncounter.objects.filter(user=user, story=story).first() if user else None
+    if tone is None and encounter and encounter.tone_heard:
+        wanted = encounter.tone_heard
+    else:
+        wanted = memory.preferred_tone(user, tone) if user else (tone or memory.DEFAULT_TONE)
+    if beat is None:
+        resuming = encounter and encounter.last_beat and not encounter.tale_completed
+        beat = encounter.last_beat + 1 if resuming and encounter.tone_heard == wanted else 1
     tellings = {t.tone: t for t in story.tellings.filter(status=StoryTelling.Status.PUBLISHED)}
     order = [
         t for t in dict.fromkeys((wanted, memory.DEFAULT_TONE, *memory.TONES)) if t in tellings
@@ -256,9 +285,9 @@ def _beat_result(user, story, telling, rendered, beat, total) -> schemas.TaleBea
     )
 
 
-def get_moral(user: EndUser | None, *, story_id: str) -> schemas.ClosingThought:
+def get_moral(user: EndUser | None, *, story_id: str | None = None) -> schemas.ClosingThought:
     """The tale's closing thought: a moral, a neutral reflection, or none."""
-    story = find_story(story_id)
+    story = resolve_story(user, story_id)
     telling = memory.published_telling(story, listening_tone(user, story))
     cultures = _proverb_cultures(telling)
     proverb_note = f"The tale carried a proverb from {_people(cultures[0])}." if cultures else ""
@@ -280,10 +309,10 @@ def get_moral(user: EndUser | None, *, story_id: str) -> schemas.ClosingThought:
 
 
 def explain_proverb(
-    user: EndUser | None, *, story_id: str, which: int = 1
+    user: EndUser | None, *, story_id: str | None = None, which: int = 1
 ) -> schemas.ProverbExplanation:
     """Culture, meaning, original wording and source of a proverb in the tale."""
-    story = find_story(story_id)
+    story = resolve_story(user, story_id)
     telling = memory.published_telling(story, listening_tone(user, story))
     links = sorted(
         telling.proverb_links.select_related("proverb") if telling else [],
@@ -354,8 +383,8 @@ def _people(culture: str) -> str:
 # Truth layers -------------------------------------------------------------------------
 
 
-def get_facts(user: EndUser | None, *, story_id: str) -> schemas.FactList:
-    story = find_story(story_id)
+def get_facts(user: EndUser | None, *, story_id: str | None = None) -> schemas.FactList:
+    story = resolve_story(user, story_id)
     facts = list(story.facts.prefetch_related("articles__source"))
     items = [schemas.FactItem(text=fact.text, sources=_refs(fact.articles.all())) for fact in facts]
     publishers = _publishers(fact.articles.all() for fact in facts)
@@ -370,8 +399,8 @@ def get_facts(user: EndUser | None, *, story_id: str) -> schemas.FactList:
     )
 
 
-def get_context(user: EndUser | None, *, story_id: str) -> schemas.ContextList:
-    story = find_story(story_id)
+def get_context(user: EndUser | None, *, story_id: str | None = None) -> schemas.ContextList:
+    story = resolve_story(user, story_id)
     rows = list(story.context_items.prefetch_related("articles__source"))
     items = [
         schemas.ContextItem(
@@ -394,8 +423,10 @@ def get_context(user: EndUser | None, *, story_id: str) -> schemas.ContextList:
     )
 
 
-def get_perspectives(user: EndUser | None, *, story_id: str) -> schemas.PerspectiveList:
-    story = find_story(story_id)
+def get_perspectives(
+    user: EndUser | None, *, story_id: str | None = None
+) -> schemas.PerspectiveList:
+    story = resolve_story(user, story_id)
     rows = list(story.perspectives.prefetch_related("articles__source"))
     items = [
         schemas.PerspectiveItem(
@@ -419,9 +450,9 @@ def get_perspectives(user: EndUser | None, *, story_id: str) -> schemas.Perspect
     )
 
 
-def get_sources(user: EndUser | None, *, story_id: str) -> schemas.SourceList:
+def get_sources(user: EndUser | None, *, story_id: str | None = None) -> schemas.SourceList:
     """Evidence cards, one per article, noting which layers each one supports."""
-    story = find_story(story_id)
+    story = resolve_story(user, story_id)
     cards: dict[int, dict] = {}
     layers = (
         ("facts", story.facts.prefetch_related("articles__source")),
@@ -475,3 +506,119 @@ def _spoken_list(items: list[str]) -> str:
     if len(items) <= 1:
         return "".join(items)
     return f"{', '.join(items[:-1])} and {items[-1]}"
+
+
+# The listener's own memory ----------------------------------------------------------
+
+
+def require_listener(user: EndUser | None) -> EndUser:
+    """Memory needs an identity; guests are told how to get one, never dead-ended."""
+    if user is None:
+        raise FriendlyError.known("needs_account")
+    return user
+
+
+def save_for_later(user: EndUser | None, *, story_id: str | None = None) -> schemas.SaveResult:
+    listener = require_listener(user)
+    story = resolve_story(listener, story_id)
+    memory.save_for_later(listener, story)
+    suggestion = memory.next_layer_suggestion(listener, story)
+    next_options = options(suggestion.label if suggestion else None, "my saved stories")
+    memory.update_session_context(listener, last_story_id=story.pk, last_options=next_options)
+    return schemas.SaveResult(
+        spoken=f"Saved {story.handle}. Ask for your saved stories any time.",
+        next_options=next_options,
+        story_id=story.pk,
+        title=story.handle,
+        saved=True,
+    )
+
+
+def get_saved_stories(user: EndUser | None) -> schemas.SavedList:
+    """Saved stories plus the latest unfinished tale, each with where to pick up."""
+    listener = require_listener(user)
+    progress = memory.get_saved_stories(listener)
+    stories = [
+        schemas.SavedStory(
+            story_id=item.story_id,
+            title=item.handle,
+            saved=item.saved,
+            tone=item.tone,
+            last_beat=item.last_beat,
+            beats_total=item.beats_total,
+            tale_completed=item.tale_completed,
+            resume_hint=item.resume_hint,
+        )
+        for item in progress
+    ]
+    if not stories:
+        return schemas.SavedList(
+            spoken="You haven't saved any stories yet. While listening, say save this story.",
+            next_options=options("today's stories"),
+            stories=[],
+        )
+    count = len(stories)
+    sentences = [f"You have {count} stor{'ies' if count != 1 else 'y'} waiting."]
+    sentences += [f"{story.title}: {story.resume_hint}." for story in stories]
+    spoken = join_within(sentences, more="Which one would you like?")
+    first = stories[0]
+    next_options = options(
+        first.resume_hint if not first.tale_completed else None,
+        *(story.title for story in stories[:3]),
+        "today's stories",
+    )
+    memory.update_session_context(listener, last_story_id=first.story_id, last_options=next_options)
+    return schemas.SavedList(spoken=spoken, next_options=next_options, stories=stories)
+
+
+def set_preferences(
+    user: EndUser | None,
+    *,
+    tone: str | None = None,
+    regions: list[str] | None = None,
+    topics: list[str] | None = None,
+    reset: bool = False,
+) -> schemas.PreferencesResult:
+    """Change only what was asked for. "Start over" clears the conversation, not history."""
+    listener = require_listener(user)
+    if not reset and tone is None and regions is None and topics is None:
+        raise FriendlyError(
+            "nothing_to_change",
+            "What would you like to change? I can tell tales in a light, balanced or serious "
+            "tone, or focus on a region.",
+            ["serious tone", "stories from everywhere"],
+        )
+    if reset:
+        memory.reset_context(listener)
+    try:
+        preferences = memory.update_preferences(listener, tone=tone, regions=regions, topics=topics)
+    except memory.MemoryInputError as error:
+        raise FriendlyError(
+            "unknown_topic",
+            "I don't know that topic yet. You could try community, health, leadership or trade.",
+            ["today's stories"],
+        ) from error
+    confirmations = ["Starting fresh."] if reset else []
+    if tone is not None:
+        confirmations.append(f"I'll tell tales in a {tone} tone.")
+    if regions is not None:
+        confirmations.append(
+            f"I'll focus on stories from {' and '.join(preferences.regions)}."
+            if preferences.regions
+            else "I'll bring stories from everywhere."
+        )
+    if topics is not None:
+        confirmations.append(
+            f"I'll look for stories about {' and '.join(t.replace('_', ' ') for t in topics)}."
+            if topics
+            else ""
+        )
+    confirmations.append("What would you like to hear?")
+    return schemas.PreferencesResult(
+        spoken=" ".join(part for part in confirmations if part),
+        next_options=options("today's stories", "my saved stories"),
+        tone=preferences.tone,
+        regions=preferences.regions,
+        topics=preferences.topics,
+        reset=reset,
+    )

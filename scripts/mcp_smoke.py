@@ -1,16 +1,21 @@
 """End-to-end smoke test of a running Greeo MCP server, using the official SDK client.
 
-Runs initialize -> tools/list -> every tool against the seeded data, prints each spoken
-reply, and exits non-zero on the first unexpected result.
+Runs the core path from the Phase 9 acceptance: search -> beats 1..N -> moral ->
+explain_proverb -> facts -> context -> perspectives -> sources -> save -> a fresh
+session -> get_saved_stories, printing each spoken reply and exiting non-zero on the first
+unexpected result.
 
 Usage (after `make up && make migrate && make seed`):
-    python scripts/mcp_smoke.py [http://127.0.0.1:8001/mcp] [--user smoke-listener]
+    python scripts/mcp_smoke.py [http://127.0.0.1:8001/mcp] [--user some-listener]
+
+Each run uses a new listener by default, so remembered history never hides the flow.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from uuid import uuid4
 
 import anyio
 import httpx2
@@ -27,6 +32,9 @@ EXPECTED_TOOLS = {
     "get_context",
     "get_perspectives",
     "get_sources",
+    "save_for_later",
+    "get_saved_stories",
+    "set_preferences",
 }
 
 
@@ -83,9 +91,18 @@ async def main(url: str, user: str) -> None:
                 show(tool, result)
                 expect(not result.is_error, f"{tool} returned an error")
 
+            saved = show("save_for_later", await client.call_tool("save_for_later", {}))
+            expect(saved.get("saved") is True, "save_for_later did not save the story")
+
             unknown = await client.call_tool("tell_tale", {"story_id": "st_missing"})
             show("tell_tale (unknown story, expected friendly error)", unknown)
             expect(unknown.is_error, "unknown story should be a friendly error")
+
+        print("\n--- fresh session ---")
+        async with Client(streamable_http_client(url, http_client=http), mode="legacy") as client:
+            listing = show("get_saved_stories", await client.call_tool("get_saved_stories", {}))
+            titles = [item["story_id"] for item in listing.get("stories", [])]
+            expect(story_id in titles, "the saved story is missing in a fresh session")
 
     print("\nSMOKE PASSED")
 
@@ -93,6 +110,6 @@ async def main(url: str, user: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("url", nargs="?", default="http://127.0.0.1:8001/mcp")
-    parser.add_argument("--user", default="smoke-listener")
+    parser.add_argument("--user", default=f"smoke-{uuid4().hex[:8]}")
     arguments = parser.parse_args()
     anyio.run(main, arguments.url, arguments.user)

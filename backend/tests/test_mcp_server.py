@@ -22,6 +22,7 @@ from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 
 from tests.factories import ProverbFactory
+from tests.story_builders import many_stories
 
 pytestmark = pytest.mark.django_db
 
@@ -37,6 +38,9 @@ TOOL_NAMES = {
     "get_context",
     "get_perspectives",
     "get_sources",
+    "save_for_later",
+    "get_saved_stories",
+    "set_preferences",
 }
 FORBIDDEN_IN_SPEECH = ("story_id", "json", "exception", "traceback", "validation", "st_")
 
@@ -120,7 +124,7 @@ GOOD_HEADERS = {"Accept": "application/json, text/event-stream"}
 # Protocol and transport -------------------------------------------------------------------
 
 
-def test_tool_list_has_all_nine_tools_with_valid_schemas() -> None:
+def test_tool_list_has_all_twelve_tools_with_valid_schemas() -> None:
     tools = run_client(lambda client: client.list_tools()).tools
 
     assert {tool.name for tool in tools} == TOOL_NAMES
@@ -404,3 +408,194 @@ def test_layer_tools_never_suggest_the_layer_just_heard(story: Story) -> None:
         assert len(next_options) == len(set(next_options))
     # By the end every layer has been heard, so no layer is offered again.
     assert results["the sources"] == ["another story"]
+
+
+# Phase 9: memory tools, the voice gate and behaviour rules ------------------------------------
+
+
+def words(result) -> int:
+    return len(spoken(result).split())
+
+
+def test_save_and_get_saved_stories_with_resume_hint(story: Story) -> None:
+    async def flow(client: Client):
+        await client.call_tool("tell_tale", {"story_id": story.pk, "beat": 2})
+        saved = await client.call_tool("save_for_later", {})  # uses the current story
+        listing = await client.call_tool("get_saved_stories", {})
+        return saved, listing
+
+    saved, listing = run_client(flow)
+
+    assert saved.structured_content["story_id"] == story.pk
+    entry = listing.structured_content["stories"][0]
+    assert (entry["saved"], entry["resume_hint"]) == (True, "continue at beat 3")
+    assert "continue at beat 3" in listing.structured_content["next_options"]
+
+
+def test_empty_saved_list_guides_the_listener(story: Story) -> None:
+    result = call("get_saved_stories", {})
+
+    assert not result.is_error
+    assert result.structured_content["stories"] == []
+    assert "save this story" in spoken(result)
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments"),
+    [("save_for_later", {}), ("get_saved_stories", {}), ("set_preferences", {"tone": "light"})],
+)
+def test_memory_tools_ask_guests_to_link_an_account(story: Story, tool: str, arguments) -> None:
+    result = call(tool, arguments, user=None)
+
+    assert result.is_error
+    assert result.structured_content["error"] == "needs_account"
+    assert "link your account" in spoken(result)
+
+
+def test_tone_preference_applies_to_tell_tale_without_an_argument(story: Story) -> None:
+    async def flow(client: Client):
+        await client.call_tool("set_preferences", {"tone": "serious"})
+        return await client.call_tool("tell_tale", {"story_id": story.pk})
+
+    assert run_client(flow).structured_content["tone_served"] == "serious"
+
+
+def test_preferences_change_independently(story: Story) -> None:
+    async def flow(client: Client):
+        await client.call_tool("set_preferences", {"tone": "serious"})
+        return await client.call_tool("set_preferences", {"regions": ["Veloria"]})
+
+    result = run_client(flow).structured_content
+
+    assert (result["tone"], result["regions"]) == ("serious", ["Veloria"])
+
+
+def test_unknown_topic_and_empty_change_are_friendly(story: Story) -> None:
+    unknown = call("set_preferences", {"topics": ["football"]})
+    nothing = call("set_preferences", {})
+
+    assert unknown.structured_content["error"] == "unknown_topic"
+    assert nothing.structured_content["error"] == "nothing_to_change"
+
+
+def test_start_over_clears_context_confirms_and_keeps_history(story: Story) -> None:
+    async def flow(client: Client):
+        await client.call_tool("tell_tale", {"story_id": story.pk, "beat": 1})
+        await client.call_tool("save_for_later", {})
+        reset = await client.call_tool("set_preferences", {"reset": True})
+        after = await client.call_tool("tell_tale", {})  # no story in context any more
+        saved = await client.call_tool("get_saved_stories", {})
+        return reset, after, saved
+
+    reset, after, saved = run_client(flow)
+
+    assert spoken(reset).startswith("Starting fresh.")
+    assert after.is_error and after.structured_content["error"] == "which_story"
+    assert saved.structured_content["stories"][0]["story_id"] == story.pk
+
+
+def test_fresh_session_resumes_the_tale_where_it_stopped(story: Story) -> None:
+    async def first_session(client: Client):
+        for beat in (1, 2):
+            await client.call_tool("tell_tale", {"story_id": story.pk, "beat": beat})
+
+    async def next_session(client: Client):
+        # A new connection: the host says "continue" with no story and no beat.
+        return await client.call_tool("tell_tale", {})
+
+    run_client(first_session)
+    resumed = run_client(next_session)
+
+    assert resumed.structured_content["beat"] == 3
+    assert resumed.structured_content["story_id"] == story.pk
+
+
+def test_resume_after_expired_context_uses_saved_progress(story: Story) -> None:
+    async def flow(client: Client):
+        await client.call_tool("tell_tale", {"story_id": story.pk, "beat": 2})
+        await client.call_tool("set_preferences", {"reset": True})  # like an expired session
+        saved = await client.call_tool("get_saved_stories", {})
+        story_id = saved.structured_content["stories"][0]["story_id"]
+        return await client.call_tool("tell_tale", {"story_id": story_id})
+
+    assert run_client(flow).structured_content["beat"] == 3
+
+
+def test_pagination_past_five_results() -> None:
+    many_stories(7)
+
+    async def flow(client: Client):
+        pages = [
+            await client.call_tool("search_events", {"query": "river crossing", "page": page})
+            for page in (1, 2, 3)
+        ]
+        return pages
+
+    first, second, third = run_client(flow)
+
+    assert len(first.structured_content["stories"]) == 5
+    assert first.structured_content["has_more"] is True
+    assert "more stories" in first.structured_content["next_options"]
+    assert len(second.structured_content["stories"]) == 2
+    assert second.structured_content["has_more"] is False
+    assert third.is_error and third.structured_content["error"] == "no_more_results"
+
+
+def test_every_tool_reply_and_error_obeys_the_voice_rules(story: Story) -> None:
+    from apps.core.speech import forbidden_words
+
+    calls = [
+        ("search_events", {"query": "footbridge"}),
+        ("search_events", {"query": "volcano"}),
+        ("get_briefing", {}),
+        ("tell_tale", {"story_id": story.pk, "beat": 1}),
+        ("tell_tale", {"story_id": story.pk, "beat": 9}),
+        ("tell_tale", {"story_id": "st_missing"}),
+        ("get_moral", {"story_id": story.pk}),
+        ("explain_proverb", {"story_id": story.pk}),
+        ("get_facts", {"story_id": story.pk}),
+        ("get_context", {"story_id": story.pk}),
+        ("get_perspectives", {"story_id": story.pk}),
+        ("get_sources", {"story_id": story.pk}),
+        ("save_for_later", {"story_id": story.pk}),
+        ("get_saved_stories", {}),
+        ("set_preferences", {"tone": "light"}),
+        ("set_preferences", {"reset": True}),
+        ("get_facts", {"story_id": "bad id"}),
+        ("no_such_tool", {}),
+    ]
+
+    async def flow(client: Client):
+        return [await client.call_tool(name, arguments) for name, arguments in calls]
+
+    for (name, _), result in zip(calls, run_client(flow), strict=True):
+        assert 0 < words(result) <= 75, (name, spoken(result))
+        assert forbidden_words(spoken(result)) == [], (name, spoken(result))
+        next_options = (result.structured_content or {}).get("next_options", [])
+        assert len(next_options) <= 5, name
+        assert (result.structured_content or {}).get("error") != "unexpected", name
+
+
+def test_no_tool_calls_an_llm(story: Story, monkeypatch) -> None:
+    from apps.llm import client as llm_client
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("An LLM was called on the hot path")
+
+    monkeypatch.setattr(llm_client.LLMGateway, "generate_json", forbidden)
+    monkeypatch.setattr(llm_client, "generate_json", forbidden)
+
+    story_tools = ("get_moral", "explain_proverb", "get_facts", "get_context")
+    story_tools += ("get_perspectives", "get_sources", "save_for_later")
+
+    async def flow(client: Client):
+        results = [await client.call_tool("search_events", {"query": "footbridge"})]
+        for beat in (1, 2, 3):
+            arguments = {"story_id": story.pk, "beat": beat}
+            results.append(await client.call_tool("tell_tale", arguments))
+        for tool in story_tools:
+            results.append(await client.call_tool(tool, {"story_id": story.pk}))
+        results.append(await client.call_tool("get_saved_stories", {}))
+        return results
+
+    assert not any(result.is_error for result in run_client(flow))

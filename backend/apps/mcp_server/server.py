@@ -33,7 +33,7 @@ from apps.core.services import get_health_report
 
 from . import handlers, schemas
 from .identity import current_user
-from .voice import options
+from .voice import BeatTooLongError, VoiceSafetyError, finalize, friendly_error
 
 logger = logging.getLogger(__name__)
 
@@ -44,16 +44,20 @@ INSTRUCTIONS = (
     "sources. Every result has a `spoken` field written to be read aloud as written: please "
     "relay tale beats faithfully and in full, because the wording and proverbs are checked "
     "against the facts. Tell a tale one beat at a time. The listener may jump to any layer at "
-    "any time and later continue the tale; never require the layers in order."
+    "any time and later continue the tale; never require the layers in order. When asked "
+    "what Greeo can do: it finds today's stories or stories on a topic, tells them as tales "
+    "in a light, balanced or serious tone, explains the proverbs, gives the facts, "
+    "background, perspectives and sources, and remembers saved stories and where the "
+    "listener stopped."
 )
 
 StoryId = Annotated[
-    str,
+    Annotated[str, Field(min_length=3, max_length=32, pattern=r"^st_[a-z0-9]+$")] | None,
     Field(
-        min_length=3,
-        max_length=32,
-        pattern=r"^st_[a-z0-9]+$",
-        description="The story_id returned by search_events or get_briefing.",
+        description=(
+            "The story_id returned by search_events, get_briefing or get_saved_stories. "
+            "Leave empty to use the story the listener is currently hearing."
+        )
     ),
 ]
 Page = Annotated[int, Field(ge=1, le=20, description="Page of results, starting at 1.")]
@@ -100,16 +104,16 @@ def _invoke(
     try:
         user = current_user(headers)
         result = handler(user, **arguments)
+        result = finalize(result, verbatim=handler is handlers.tell_tale)
     except handlers.FriendlyError as error:
         return friendly_result(error.kind, error.spoken, error.next_options)
+    except (VoiceSafetyError, BeatTooLongError):
+        # A data or code error: the reply broke a voice rule. Log it; never speak it.
+        logger.exception("Tool %s produced a reply that failed the voice gate", handler.__name__)
+        return friendly_result("unexpected", *friendly_error("unexpected"))
     except Exception:
         logger.exception("Tool handler %s failed", getattr(handler, "__name__", handler))
-        return friendly_result(
-            "unexpected",
-            "Something went wrong on my side. "
-            "Please try again in a moment, or ask for another story.",
-            ["today's stories"],
-        )
+        return friendly_result("unexpected", *friendly_error("unexpected"))
     finally:
         _release_stale_connection()
     return CallToolResult(
@@ -125,7 +129,16 @@ def _release_stale_connection() -> None:
 
 
 def friendly_result(kind: str, spoken: str, next_options: list[str]) -> CallToolResult:
-    """An `isError` result whose text is safe to speak and says what to do next."""
+    """An `isError` result whose text is safe to speak and says what to do next.
+
+    Errors pass the same voice gate; one that echoes a listener's words containing a
+    forbidden term falls back to a generic message.
+    """
+    try:
+        gated = finalize(schemas.Envelope(spoken=spoken, next_options=next_options))
+    except VoiceSafetyError:
+        gated = schemas.Envelope(spoken=friendly_error("invalid_request")[0], next_options=[])
+    spoken, next_options = gated.spoken, gated.next_options
     return CallToolResult(
         content=[TextContent(type="text", text=spoken)],
         structured_content={"error": kind, "spoken": spoken, "next_options": next_options},
@@ -145,11 +158,7 @@ async def friendly_errors(ctx: Any, call_next: Callable[[Any], Any]) -> Any:
     if ctx.method != "tools/call" or not _is_unhandled_error(result):
         return result
     logger.info("Rewrote tool error for the listener: %r", _error_text(result)[:500])
-    friendly = friendly_result(
-        "invalid_request",
-        "I couldn't quite do that. You can ask for today's stories, or search for a topic.",
-        options("today's stories"),
-    )
+    friendly = friendly_result("invalid_request", *friendly_error("invalid_request"))
     if isinstance(result, dict):
         return friendly.model_dump(mode="json", by_alias=True, exclude_none=True)
     return friendly
@@ -202,24 +211,32 @@ async def get_briefing(
 
 async def tell_tale(
     ctx: Context,
-    story_id: StoryId,
+    story_id: StoryId = None,
     beat: Annotated[
-        int, Field(ge=1, le=20, description="Which part of the tale to tell, starting at 1.")
-    ] = 1,
+        int | None,
+        Field(
+            ge=1,
+            le=20,
+            description=(
+                "Which part of the tale to tell, starting at 1. Leave empty to continue "
+                "where the listener stopped."
+            ),
+        ),
+    ] = None,
     tone: Tone = None,
 ) -> Annotated[CallToolResult, schemas.TaleBeat]:
     return await run_handler(handlers.tell_tale, ctx, story_id=story_id, beat=beat, tone=tone)
 
 
 async def get_moral(
-    ctx: Context, story_id: StoryId
+    ctx: Context, story_id: StoryId = None
 ) -> Annotated[CallToolResult, schemas.ClosingThought]:
     return await run_handler(handlers.get_moral, ctx, story_id=story_id)
 
 
 async def explain_proverb(
     ctx: Context,
-    story_id: StoryId,
+    story_id: StoryId = None,
     which: Annotated[
         int, Field(ge=1, le=5, description="Which proverb in the tale, starting at 1.")
     ] = 1,
@@ -227,26 +244,76 @@ async def explain_proverb(
     return await run_handler(handlers.explain_proverb, ctx, story_id=story_id, which=which)
 
 
-async def get_facts(ctx: Context, story_id: StoryId) -> Annotated[CallToolResult, schemas.FactList]:
+async def get_facts(
+    ctx: Context, story_id: StoryId = None
+) -> Annotated[CallToolResult, schemas.FactList]:
     return await run_handler(handlers.get_facts, ctx, story_id=story_id)
 
 
 async def get_context(
-    ctx: Context, story_id: StoryId
+    ctx: Context, story_id: StoryId = None
 ) -> Annotated[CallToolResult, schemas.ContextList]:
     return await run_handler(handlers.get_context, ctx, story_id=story_id)
 
 
 async def get_perspectives(
-    ctx: Context, story_id: StoryId
+    ctx: Context, story_id: StoryId = None
 ) -> Annotated[CallToolResult, schemas.PerspectiveList]:
     return await run_handler(handlers.get_perspectives, ctx, story_id=story_id)
 
 
 async def get_sources(
-    ctx: Context, story_id: StoryId
+    ctx: Context, story_id: StoryId = None
 ) -> Annotated[CallToolResult, schemas.SourceList]:
     return await run_handler(handlers.get_sources, ctx, story_id=story_id)
+
+
+async def save_for_later(
+    ctx: Context, story_id: StoryId = None
+) -> Annotated[CallToolResult, schemas.SaveResult]:
+    return await run_handler(handlers.save_for_later, ctx, story_id=story_id)
+
+
+async def get_saved_stories(ctx: Context) -> Annotated[CallToolResult, schemas.SavedList]:
+    return await run_handler(handlers.get_saved_stories, ctx)
+
+
+async def set_preferences(
+    ctx: Context,
+    tone: Tone = None,
+    regions: Annotated[
+        list[Annotated[str, Field(min_length=1, max_length=100)]] | None,
+        Field(
+            max_length=5,
+            description=(
+                "Regions or countries to focus on, for example Nigeria or East Africa. An "
+                "empty list means stories from everywhere. Leave out to keep the current choice."
+            ),
+        ),
+    ] = None,
+    topics: Annotated[
+        list[Annotated[str, Field(min_length=1, max_length=80)]] | None,
+        Field(
+            max_length=5,
+            description=(
+                "Themes to prefer, such as community, health, leadership, trade or courage. "
+                "Leave out to keep the current choice."
+            ),
+        ),
+    ] = None,
+    reset: Annotated[
+        bool,
+        Field(
+            description=(
+                "True when the listener says start over or start fresh: clears the current "
+                "conversation. Saved stories and history are kept."
+            )
+        ),
+    ] = False,
+) -> Annotated[CallToolResult, schemas.PreferencesResult]:
+    return await run_handler(
+        handlers.set_preferences, ctx, tone=tone, regions=regions, topics=topics, reset=reset
+    )
 
 
 TOOLS: list[tuple[Callable[..., Any], str, str, ToolAnnotations]] = [
@@ -269,11 +336,12 @@ TOOLS: list[tuple[Callable[..., Any], str, str, ToolAnnotations]] = [
     (
         tell_tale,
         "Tell the tale",
-        "Call to tell a story as a spoken tale, ONE beat per call; call again with beat+1 when "
-        "the listener says continue, go on or what happened next. Also resumes a tale at a "
-        "given beat. Returns the beat text (proverbs already woven in), beats_total, has_more "
-        "and next_options. Relay the beat in full. Do not use for facts, sources or the "
-        "moral; those have their own tools.",
+        "Call to tell a story as a spoken tale, ONE beat per call. When the listener says "
+        "continue, go on or what happened next, call it with no beat (it resumes where they "
+        "stopped) or with beat+1. With no story_id it uses the story they are hearing. Returns "
+        "the beat text (proverbs already woven in), beats_total, has_more and next_options. "
+        "Relay the beat in full. Do not use for facts, sources or the moral; those have "
+        "their own tools.",
         REMEMBERS,
     ),
     (
@@ -322,6 +390,40 @@ TOOLS: list[tuple[Callable[..., Any], str, str, ToolAnnotations]] = [
         "Returns one card per source with publisher, headline and date, and which layers it "
         "supports. Links are not included by default; never read links aloud.",
         REMEMBERS,
+    ),
+    (
+        save_for_later,
+        "Save for later",
+        "Call when the listener says save this, remember this story or keep it for later. "
+        "With no story_id it saves the story they are hearing. Needs a linked account.",
+        ToolAnnotations(
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+    ),
+    (
+        get_saved_stories,
+        "My saved stories",
+        "Call when the listener asks for their saved stories, what they were listening to, or "
+        "to pick up where they left off. Returns saved stories and the latest unfinished tale, "
+        "each with a resume hint such as continue at beat 3. Needs a linked account.",
+        READ_ONLY,
+    ),
+    (
+        set_preferences,
+        "Preferences",
+        "Call when the listener changes how stories are told or chosen: a tone (make it "
+        "serious, lighter please), regions (only Nigeria, stories from everywhere) or topics. "
+        "Only the values given change; others are kept. Set reset when they say start over. "
+        "Needs a linked account.",
+        ToolAnnotations(
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
     ),
 ]
 

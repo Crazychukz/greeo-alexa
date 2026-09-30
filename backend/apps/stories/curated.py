@@ -186,6 +186,17 @@ def validate_curated_event(event: CuratedEvent, *, synthetic: bool) -> Report:
     if "balanced" not in event.tellings:
         report.errors.append("tellings: a balanced telling is required.")
 
+    spoken_layers = [
+        *(("facts", i, f.text) for i, f in enumerate(event.facts, start=1)),
+        *(("context", i, c.text) for i, c in enumerate(event.context, start=1)),
+        *(
+            ("perspectives", i, f"{p.label} {p.summary}")
+            for i, p in enumerate(event.perspectives, start=1)
+        ),
+    ]
+    for layer, index, text in spoken_layers:
+        report.extend(f"{layer}[{index}]", validators.check_voice_vocabulary(text))
+
     sources = [info.title, *(f.text for f in event.facts), *(c.text for c in event.context)]
     notes = [item.note for item in event.evidence]
     banned = validators.banned_phrases()
@@ -197,6 +208,7 @@ def validate_curated_event(event: CuratedEvent, *, synthetic: bool) -> Report:
             report.extend(beat_where, validators.check_faithfulness(beat, sources))
             report.extend(beat_where, validators.check_copy(beat, notes))
             report.extend(beat_where, validators.check_banned_phrases(beat, banned))
+            report.extend(beat_where, validators.check_voice_vocabulary(beat))
         report.extend(
             where,
             validators.check_closing(
@@ -206,6 +218,9 @@ def validate_curated_event(event: CuratedEvent, *, synthetic: bool) -> Report:
         report.extend(f"{where}.closing_text", validators.check_copy(telling.closing_text, notes))
         report.extend(
             f"{where}.closing_text", validators.check_banned_phrases(telling.closing_text, banned)
+        )
+        report.extend(
+            f"{where}.closing_text", validators.check_voice_vocabulary(telling.closing_text)
         )
     return report
 
