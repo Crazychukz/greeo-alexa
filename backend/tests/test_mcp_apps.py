@@ -16,7 +16,7 @@ from mcp.client.extension import advertise
 from mcp.client.streamable_http import streamable_http_client
 from mcp.server.apps import APP_MIME_TYPE, EXTENSION_ID
 
-from tests.test_mcp_server import BASE, debug_mode, run_client, story  # noqa: F401  (fixtures)
+from tests.test_mcp_server import BASE, debug_mode, run_client  # noqa: F401  (fixture)
 
 pytestmark = pytest.mark.django_db
 
@@ -135,7 +135,7 @@ def test_card_links_are_visible_to_hosts_that_advertise_apps_support() -> None:
     assert linked == set(CARD_FOR_TOOL)
 
 
-def test_tools_return_full_text_with_and_without_ui_support(story: Story) -> None:  # noqa: F811
+def test_tools_return_full_text_with_and_without_ui_support(story: Story) -> None:
     async def flow(client: Client):
         return [
             await client.call_tool(name, {"story_id": story.pk}) for name in sorted(CARD_FOR_TOOL)
@@ -150,7 +150,7 @@ def test_tools_return_full_text_with_and_without_ui_support(story: Story) -> Non
         assert without.structured_content["spoken"] == text
 
 
-def test_card_data_has_title_progress_and_highlightable_proverbs(story: Story) -> None:  # noqa: F811
+def test_card_data_has_title_progress_and_highlightable_proverbs(story: Story) -> None:
     async def flow(client: Client):
         beat = await client.call_tool("tell_tale", {"story_id": story.pk, "beat": 1})
         moral = await client.call_tool("get_moral", {"story_id": story.pk})
@@ -179,7 +179,7 @@ def test_card_data_has_title_progress_and_highlightable_proverbs(story: Story) -
     )
 
 
-def test_closing_step_is_labelled_moral_only_for_a_moral(story: Story) -> None:  # noqa: F811
+def test_closing_step_is_labelled_moral_only_for_a_moral(story: Story) -> None:
     StoryTelling.objects.filter(story=story).update(closing_kind=StoryTelling.ClosingKind.MORAL)
 
     result = run_client(lambda client: client.call_tool("get_facts", {"story_id": story.pk}))
@@ -188,7 +188,7 @@ def test_closing_step_is_labelled_moral_only_for_a_moral(story: Story) -> None: 
     assert labels["closing"] == "MORAL"
 
 
-def test_unservable_proverbs_never_reach_the_wisdom_card(story: Story) -> None:  # noqa: F811
+def test_unservable_proverbs_never_reach_the_wisdom_card(story: Story) -> None:
     from apps.wisdom.models import Proverb
 
     Proverb.objects.filter(pk="pv_synthetic02").update(

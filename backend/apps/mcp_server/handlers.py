@@ -69,9 +69,11 @@ def resolve_story(user: EndUser | None, story_id: str | None) -> Story:
     if story_id:
         return find_story(story_id)
     last = memory.get_session_context(user).last_story_id if user else None
-    if last:
-        return find_story(last)
-    raise FriendlyError.known("which_story")
+    story = published_stories().filter(pk=last).first() if last else None
+    if story is None:
+        # No story in context, or it is no longer available: ask, do not report a fault.
+        raise FriendlyError.known("which_story")
+    return story
 
 
 def listening_tone(user: EndUser | None, story: Story) -> str:

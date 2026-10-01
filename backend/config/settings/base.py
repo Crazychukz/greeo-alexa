@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.postgres",
     "rest_framework",
+    "corsheaders",
     "apps.core",
     "apps.news",
     "apps.stories",
@@ -86,6 +87,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -168,8 +170,33 @@ MCP_ALLOWED_ORIGINS = [
     for o in env("MCP_ALLOWED_ORIGINS", "http://localhost:*,http://127.0.0.1:*").split(",")
     if o.strip()
 ]
+# The X-Greeo-User development header lets a caller name any identity, so it is only
+# honoured when DEBUG is also on; the MCP server refuses to start otherwise.
+MCP_ALLOW_DEV_IDENTITY = env_bool("MCP_ALLOW_DEV_IDENTITY", DEBUG)
+# Light abuse protection for a public demo: requests per minute per token (or per
+# client address for guests). 0 turns it off.
+MCP_RATE_LIMIT_PER_MINUTE = env_int("MCP_RATE_LIMIT_PER_MINUTE", 240)
 # Amazon's payload guidance: "no third-party tracking parameters, or upstream deep links".
 INCLUDE_SOURCE_URLS = env_bool("INCLUDE_SOURCE_URLS", False)
+
+# Simulator host API: our stand-in for Alexa+. It reaches Greeo only through MCP.
+SIMULATOR_MCP_URL = env("SIMULATOR_MCP_URL", "http://127.0.0.1:8001/mcp")
+SIMULATOR_MAX_TOOL_ITERATIONS = env_int("SIMULATOR_MAX_TOOL_ITERATIONS", 4)
+SIMULATOR_SESSION_SECONDS = env_int("SIMULATOR_SESSION_SECONDS", 1800)
+# Browser origins allowed to call the simulator API (the separate front end).
+CORS_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in env("CORS_ALLOWED_ORIGINS", "http://localhost:4200,http://localhost:5173").split(",")
+    if o.strip()
+]
+CORS_URLS_REGEX = r"^/api/simulator/.*$"
+CORS_ALLOW_HEADERS = ["accept", "authorization", "content-type", "x-greeo-user"]
+REST_FRAMEWORK = {
+    # The simulator API is a local demo surface; identity is the dev header in DEBUG.
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    "UNAUTHENTICATED_USER": None,
+}
 
 # Simulator speech. Mock means no audio (the front end uses browser speech); Polly is
 # opt-in, like Bedrock, so a clean clone needs no AWS credentials.
@@ -178,6 +205,29 @@ POLLY_VOICE_ID = env("POLLY_VOICE_ID", "Ayanda")
 POLLY_ENGINE = env("POLLY_ENGINE", "neural")
 SPEECH_RETRIES = env_int("SPEECH_RETRIES", 2)
 SPEECH_CACHE_SECONDS = env_int("SPEECH_CACHE_SECONDS", 86400)
+
+# Structured logs: one JSON object per line, with credentials redacted before output.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {"redact": {"()": "apps.core.logging.RedactSecrets"}},
+    "formatters": {"json": {"()": "apps.core.logging.JsonFormatter"}},
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "filters": ["redact"],
+            "formatter": "json",
+        }
+    },
+    "root": {"handlers": ["console"], "level": env("LOG_LEVEL", "INFO")},
+    "loggers": {
+        # The HTTP client logs one line per request at INFO; keep tool logs readable.
+        "httpx": {"level": "WARNING"},
+        "httpx2": {"level": "WARNING"},
+        # The stateless transport logs a line for every request it closes.
+        "mcp.server.streamable_http": {"level": "WARNING"},
+    },
+}
 
 # LLM calls are permitted only through apps.llm.client. Mock is intentionally
 # the default so a clean local setup never requires cloud credentials.

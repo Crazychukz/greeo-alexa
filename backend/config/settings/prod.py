@@ -8,6 +8,8 @@ from .base import INSECURE_DEFAULT_SECRET_KEY, SECRET_KEY
 DEBUG = False
 # Synthetic fixtures must never reach real listeners, whatever the environment says.
 ALLOW_SYNTHETIC = False
+# The development identity header is never trusted in production.
+MCP_ALLOW_DEV_IDENTITY = False
 
 if not SECRET_KEY or SECRET_KEY == INSECURE_DEFAULT_SECRET_KEY:
     raise ImproperlyConfigured("Set DJANGO_SECRET_KEY to a unique secret value in production.")

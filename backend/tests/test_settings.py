@@ -56,3 +56,19 @@ def test_missing_database_url_fails_loudly() -> None:
 
     assert missing.returncode != 0
     assert "Set the DATABASE_URL environment variable." in missing.stderr
+
+
+def test_prod_never_trusts_the_dev_identity_header() -> None:
+    code = "import config.settings.prod as s; print(s.MCP_ALLOW_DEV_IDENTITY)"
+    env = {key: value for key, value in os.environ.items() if key != "MCP_ALLOW_DEV_IDENTITY"}
+    env.update(
+        DATABASE_URL="postgresql://user:pass@localhost:5432/db",
+        DJANGO_SECRET_KEY="synthetic-test-secret",
+        MCP_ALLOW_DEV_IDENTITY="true",
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=BACKEND_DIR, env=env, capture_output=True, text=True
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "False"

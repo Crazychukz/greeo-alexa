@@ -2,7 +2,7 @@
 
 COMPOSE := docker compose
 
-.PHONY: up down logs migrate shell test lint format seed demo smoke ui
+.PHONY: up down logs migrate shell test lint format seed demo smoke ui talk lab
 
 up:
 	@test -f .env || cp .env.example .env
@@ -54,3 +54,11 @@ smoke:
 
 ui:
 	$(COMPOSE) exec web python manage.py build_ui
+
+talk:
+	scripts/simulator_demo.sh
+
+# Retell the top headline of a live feed with the configured model; output in lab/runs/.
+lab:
+	mkdir -p lab
+	$(COMPOSE) run --rm -v "$(CURDIR)/lab:/app/lab" -e FEED="$(FEED)" -e ITEM="$(ITEM)" -e UNREVIEWED="$(UNREVIEWED)" web python /app/scripts/lab_retell.py

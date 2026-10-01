@@ -18,3 +18,6 @@ celerybeat-schedule
 # Demo-only proverb corpus (africanproverbs.com, unlicensed). Commit only once the
 # GitHub repo is private; delete after judging. See docs/proverbs/DEMO_CORPUS.md.
 data/proverbs/demo/
+
+# Lab runs: live model output on real headlines, for local investigation only.
+lab/

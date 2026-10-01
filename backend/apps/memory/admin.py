@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import EndUser, Follow, RecallItem, StoryEncounter, StoryUpdate
+from .models import ApiToken, EndUser, Follow, RecallItem, StoryEncounter, StoryUpdate
 
 
 @admin.register(EndUser)
@@ -38,3 +38,16 @@ class FollowAdmin(admin.ModelAdmin):
 class StoryUpdateAdmin(admin.ModelAdmin):
     list_display = ("story", "summary", "created_at")
     search_fields = ("story__handle", "summary")
+
+
+@admin.register(ApiToken)
+class ApiTokenAdmin(admin.ModelAdmin):
+    """Tokens can be revoked here. The hash is shown only so records can be told apart."""
+
+    list_display = ("user", "label", "revoked", "created_at", "last_used_at")
+    list_filter = ("revoked",)
+    search_fields = ("user__external_id", "label")
+    readonly_fields = ("user", "token_hash", "created_at", "last_used_at")
+
+    def has_add_permission(self, request):
+        return False

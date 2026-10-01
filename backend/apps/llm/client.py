@@ -11,7 +11,7 @@ from typing import Any, TypeVar
 from django.conf import settings
 from pydantic import BaseModel, ValidationError
 
-from .backends import BackendResponse, BedrockLLM, LLMBackend, MockLLM
+from .backends import BackendResponse, BedrockLLM, LLMBackend, MockLLM, ToolTurn
 from .budget import BudgetGuard, RedisBudgetGuard
 from .exceptions import LLMError, LLMOutputError
 from .models import LLMCall
@@ -51,6 +51,56 @@ class LLMGateway:
         raise LLMOutputError(
             f"{prompt_name!r} returned invalid JSON after one bounded repair attempt."
         )
+
+    def generate_with_tools(
+        self,
+        prompt_name: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        run_id: str = "simulator",
+    ) -> ToolTurn:
+        """One budgeted, audited tool-use turn. The caller executes tools and loops.
+
+        The registered prompt is the system prompt; conversation content is never stored.
+        """
+        definition = load_prompt(prompt_name)
+        model_id = model_for_prompt(definition.name)
+        sized = definition.text + json.dumps(messages, default=str)
+        reservation = self.budget.reserve(run_id, sized, settings.LLM_MAX_TOKENS)
+        started = time.monotonic()
+        try:
+            turn = self.backend.converse_tools(
+                system=definition.text,
+                messages=messages,
+                tools=tools,
+                model_id=model_id,
+                max_tokens=settings.LLM_MAX_TOKENS,
+            )
+        except Exception as error:
+            self.budget.settle(reservation, 0)
+            self._record_call(
+                definition=definition,
+                model_id=model_id,
+                variables={},
+                tokens_in=0,
+                tokens_out=0,
+                latency_ms=elapsed_ms(started),
+                ok=False,
+                error=str(error),
+            )
+            raise
+        self.budget.settle(reservation, turn.tokens_in + turn.tokens_out)
+        self._record_call(
+            definition=definition,
+            model_id=model_id,
+            variables={},
+            tokens_in=turn.tokens_in,
+            tokens_out=turn.tokens_out,
+            latency_ms=elapsed_ms(started),
+            ok=True,
+            error="",
+        )
+        return turn
 
     def _call(
         self,

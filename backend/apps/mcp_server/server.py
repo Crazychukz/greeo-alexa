@@ -33,7 +33,8 @@ from starlette.responses import JSONResponse
 from apps.core.services import get_health_report
 
 from . import handlers, schemas, ui_build
-from .identity import current_user
+from .gate import IdentityGate
+from .identity import assert_safe_identity_settings, current_user
 from .voice import BeatTooLongError, VoiceSafetyError, finalize, friendly_error
 
 logger = logging.getLogger(__name__)
@@ -503,13 +504,17 @@ def transport_security() -> TransportSecuritySettings:
 
 def create_app() -> Starlette:
     """Stateless Streamable HTTP with JSON responses: every call stands alone."""
-    return build_server().streamable_http_app(
+    assert_safe_identity_settings()
+    app = build_server().streamable_http_app(
         streamable_http_path="/mcp",
         stateless_http=True,
         json_response=True,
         transport_security=transport_security(),
         host=settings.MCP_HOST,
     )
+    # Reject unknown bearer tokens (401) and excessive request rates (429) before MCP.
+    app.add_middleware(IdentityGate, path="/mcp")
+    return app
 
 
 def output_model(tool_name: str) -> type[BaseModel]:

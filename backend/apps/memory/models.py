@@ -60,3 +60,22 @@ class StoryUpdate(models.Model):
     summary = models.CharField(max_length=300)
     articles = models.ManyToManyField("news.Article", related_name="story_updates")
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ApiToken(models.Model):
+    """A demo bearer token for the simulator and local tools. Only its hash is stored.
+
+    This is NOT Alexa+ production authentication. In production the identity comes from
+    an OAuth 2.1 access token issued through account linking; see
+    docs/ALEXA_ACCOUNT_LINKING.md.
+    """
+
+    user = models.ForeignKey(EndUser, on_delete=models.CASCADE, related_name="api_tokens")
+    token_hash = models.CharField(max_length=64, unique=True)
+    label = models.CharField(max_length=120, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked = models.BooleanField(default=False)
+
+    def __str__(self) -> str:
+        return f"{self.user} ({self.label or 'token'})"

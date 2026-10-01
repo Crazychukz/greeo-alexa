@@ -19,6 +19,19 @@ written when the friction happens, not reconstructed afterwards.
 
 ## Entries
 
+### 2026-09-30: Account-linking docs leave the resource-server side unspecified
+
+- **Tool / doc:** Alexa+ MCP Toolkit,
+  [Account Linking for MCP Add-ons](https://developer.amazon.com/docs/alexaplus/add-ons/mcp-toolkit-account-linking.html)
+  and [QuickStart](https://developer.amazon.com/docs/alexaplus/add-ons/mcp-toolkit-quickstart.html)
+- **Task attempted:** Design how Greeo's MCP server identifies a listener for per-user memory (saved stories, where they stopped).
+- **Steps taken:** Read the account-linking page, the quickstart, the functional requirements and the MCP authorization spec; compared them.
+- **Expected result:** A description of what the MCP server receives and must check: the header carrying the token, the token format and claims, how to validate the audience, and how to tell one customer from another.
+- **Actual result:** The page covers the authorization-server side well (PKCE, redirect URIs, resource parameter) but says only that "Alexa includes this access token in every request" and that the add-on "uses it to identify the customer". It does not name the header, the token format, or any claim to use as the customer identifier. The quickstart says to return 401 "without a `WWW-Authenticate` header", which differs from the MCP spec's example; neither page explains why. No identifier is documented for unlinked customers, so per-user state is impossible without account linking, and that is not stated either.
+- **Severity:** Medium
+- **Workaround used:** Followed the MCP authorization spec for the missing parts (`Authorization: Bearer`, audience validation, 401 on invalid tokens), mapped `issuer + subject` to a local user, and kept story tools open to guests.
+- **Actionable suggestion:** Add a "What your MCP server receives" section with a sample request, the token's format and claims, a validation checklist, the recommended customer identifier, and a note that unlinked customers have no stable identity.
+
 ### 2026-09-28: Conflicting MCP protocol version in the Alexa+ docs
 
 - **Tool / doc:** Alexa+ MCP Toolkit docs,
@@ -38,7 +51,7 @@ written when the friction happens, not reconstructed afterwards.
 - **Task attempted:** Make sure no tool name, field name or technical message can reach an Alexa+ customer, as the functional requirements demand.
 - **Steps taken:** Called a tool with an invalid argument through the SDK client; read the server source; added a middleware and inspected what it receives.
 - **Expected result:** A generic or configurable error message for argument-validation failures and unexpected exceptions.
-- **Actual result:** The SDK returns `str(exc)` as the tool result, for example "Error executing tool tell_tale: 1 validation error for tell_taleArguments … https://errors.pydantic.dev/…". There is no setting to change this, and at the middleware layer the result arrives as a camelCase wire-format dict rather than a `CallToolResult`, which is undocumented. Also, v2 renamed `FastMCP` to `MCPServer`, so most tutorials no longer run.
+- **Actual result:** The SDK returns `str(exc)` as the tool result, for example "Error executing tool tell_tale: 1 validation error for tell_taleArguments … https://errors.pydantic.dev/…". There is no setting to change this, and the SDK client hides HTTP status codes too: a 401 or 429 from the server surfaces only as `MCPError: Server returned an error response`, so a host cannot tell a rejected token from an outage without a second plain HTTP request. At the middleware layer the result arrives as a camelCase wire-format dict rather than a `CallToolResult`, which is undocumented. Also, v2 renamed `FastMCP` to `MCPServer`, so most tutorials no longer run.
 - **Severity:** High for voice products (the text becomes speech); Medium otherwise.
 - **Workaround used:** A server middleware that rewrites any error result without Greeo's own error marker into a plain-language message, handling both the dict and model forms; handlers catch everything else themselves.
 - **Actionable suggestion:** Add a server option for a customer-safe error formatter, and document the result type middleware receives for `tools/call`.

@@ -9,3 +9,4 @@ boto3==1.43.101
 httpx==0.28.1
 feedparser==6.0.14
 mcp==2.2.0
+django-cors-headers==4.9.0

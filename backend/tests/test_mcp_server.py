@@ -8,10 +8,8 @@ from typing import Any
 
 import httpx2
 import pytest
-import yaml
 from apps.mcp_server.server import create_app
 from apps.memory.models import StoryEncounter
-from apps.stories.curated import CuratedEvent, load_curated_event
 from apps.stories.models import Story
 from apps.wisdom.models import Proverb
 from asgiref.sync import async_to_sync
@@ -21,7 +19,6 @@ from jsonschema import Draft202012Validator
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 
-from tests.factories import ProverbFactory
 from tests.story_builders import many_stories
 
 pytestmark = pytest.mark.django_db
@@ -49,16 +46,7 @@ FORBIDDEN_IN_SPEECH = ("story_id", "json", "exception", "traceback", "validation
 def debug_mode(settings) -> None:
     """pytest-django runs with DEBUG off; the dev identity header needs it on, as locally."""
     settings.DEBUG = True
-
-
-@pytest.fixture
-def story() -> Story:
-    ProverbFactory(id="pv_synthetic01", spoken_form="Test proverb one is spoken here.")
-    ProverbFactory(
-        id="pv_synthetic02", spoken_form="Test proverb two is spoken here.", culture="Hausa"
-    )
-    data = yaml.safe_load(FIXTURE.read_text(encoding="utf-8"))
-    return load_curated_event(CuratedEvent.model_validate(data), synthetic=True).story
+    settings.MCP_ALLOW_DEV_IDENTITY = True
 
 
 def run_client(work: Callable[[Client], Awaitable[Any]], *, user: str | None = "listener-1") -> Any:
@@ -244,8 +232,8 @@ def test_guests_hear_the_tale_but_nothing_is_recorded(story: Story) -> None:
     assert not StoryEncounter.objects.exists()
 
 
-def test_dev_header_is_ignored_outside_debug(story: Story) -> None:
-    with override_settings(DEBUG=False):
+def test_dev_header_is_ignored_when_dev_identity_is_off(story: Story) -> None:
+    with override_settings(MCP_ALLOW_DEV_IDENTITY=False):
         call("tell_tale", {"story_id": story.pk}, user="listener-9")
 
     assert not StoryEncounter.objects.exists()
