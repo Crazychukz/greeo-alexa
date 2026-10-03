@@ -39,6 +39,11 @@ ATTRIBUTION_PATTERN = re.compile(
 )
 ATTRIBUTION_GAP = re.compile(r"[\s,:;—–-]*")
 
+# Speech or a made-up saying in single quotes: an opening quote after a space or start,
+# a closing quote before a space, punctuation or the end. Apostrophes inside words
+# (Dangote's, Africans' land) do not match because they lack one of the two edges.
+SINGLE_QUOTED = re.compile(r"(?:^|(?<=[\s(:,—–-]))['‘][^'‘’\n]{2,}?[.,!?]?['’](?=[\s.,;:!?)]|$)")
+
 WORD_PATTERN = re.compile(r"[A-Za-z0-9À-ɏ][\w'’À-ɏ-]*")
 NUMBER_PATTERN = re.compile(r"\d(?:[\d,.]*\d)?")
 SENTENCE_END = ".!?\n"
@@ -58,8 +63,9 @@ def check_beats(beats: list[str], spoken_by_slot: Mapping[str, str]) -> list[str
     slot_uses: dict[str, int] = {}
     for index, beat in enumerate(beats, start=1):
         label = f"beat {index}"
-        if any(mark in beat for mark in QUOTATION_MARKS):
+        if any(mark in beat for mark in QUOTATION_MARKS) or SINGLE_QUOTED.search(beat):
             problems.append(f"{label} contains a quotation mark; beats may not quote anyone.")
+        problems.extend(f"{label} {problem}" for problem in check_storyteller_names(beat))
         leftover = SLOT_PATTERN.sub("", beat)
         if "{{" in leftover or "}}" in leftover:
             problems.append(f"{label} has a malformed slot marker; use {{{{P1}}}} style.")
@@ -99,6 +105,45 @@ def check_attribution(text: str) -> list[str]:
                 "only verified proverbs may be attributed to tradition."
             )
     return problems
+
+
+def check_proverb_copies(text: str, spoken_by_slot: Mapping[str, str]) -> list[str]:
+    """The writer sees proverb wording; it must use the slot, never write the words.
+
+    Writing them out would let a model drift from the verified text unnoticed.
+    """
+    writer_words = _lower_words(SLOT_PATTERN.sub(" | ", text))
+    problems = []
+    for slot, spoken in spoken_by_slot.items():
+        words = _lower_words(spoken)
+        size = min(6, len(words))
+        if size >= 3 and _ngrams(words, size) & _ngrams(writer_words, size):
+            problems.append(f"writes out the words of {slot}; use {{{{{slot}}}}} instead.")
+    return problems
+
+
+def check_storyteller_names(text: str) -> list[str]:
+    """The voice shapes how a tale sounds; the tale never names or describes it."""
+    for pattern in storyteller_names():
+        if match := pattern.search(text):
+            return [f"mentions the storyteller ({match.group(0)!r}); the voice is never named."]
+    return []
+
+
+@lru_cache
+def storyteller_names() -> tuple[re.Pattern[str], ...]:
+    """Each voice's name as a name (capitalised), and its title noun (the Trickster).
+
+    Lower case is ordinary prose: "a wise judge would weigh both sides" is allowed.
+    """
+    from apps.stories.voices import VOICE_STYLES
+
+    patterns = []
+    for voice in VOICE_STYLES.values():
+        patterns.append(re.compile(rf"\b{re.escape(voice.name)}\b"))
+        title = voice.name.split()[-1]
+        patterns.append(re.compile(rf"\b(?:[Tt]he|[Aa]) {re.escape(title)}\b"))
+    return tuple(patterns)
 
 
 def check_faithfulness(text: str, source_texts: Iterable[str]) -> list[str]:
@@ -171,8 +216,15 @@ def check_closing(
         problems.append(f"closing_text has {len(text)} characters; limit is {MAX_CLOSING_CHARS}.")
     if find_slots(text) or "{{" in text:
         problems.append("closing_text may not contain proverb slots.")
-    if any(mark in text for mark in QUOTATION_MARKS):
+    if any(mark in text for mark in QUOTATION_MARKS) or SINGLE_QUOTED.search(text):
         problems.append("closing_text contains a quotation mark.")
+    if ATTRIBUTION_PATTERN.search(text):
+        # The closing holds no proverb, so any credit to tradition would be invented.
+        problems.append(
+            "closing_text credits tradition (for example 'as the elders say'); "
+            "the closing is Greeo's own words and may not."
+        )
+    problems.extend(f"closing_text {p}" for p in check_storyteller_names(text))
     if tone_class == "sensitive":
         if closing_kind == "moral":
             problems.append("sensitive stories use a reflection or no closing, not a moral.")

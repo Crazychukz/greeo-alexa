@@ -16,6 +16,10 @@ removed.
   permission has been requested (see below).
 - Every entry imports with `tone_ok = false`. A person must read and approve each
   proverb (admin action *Approve tone for selected proverbs*) before it can be used.
+  On 2026-10-01 the owner approved the whole corpus at once with
+  `python manage.py trust_proverbs` (undo with `--undo`), and the writer now chooses
+  among all of them by meaning. Disputed or poor entries can still be un-approved
+  one by one in the admin.
 - The sayings are traditional; the English translations and meaning notes are the
   site's.
 

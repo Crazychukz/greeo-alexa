@@ -98,17 +98,21 @@ def test_curated_event_can_choose_a_voice_and_bad_choices_are_reported() -> None
     )
 
 
-def test_writer_prompt_carries_the_voice_shape_and_hard_rules() -> None:
+def test_writer_prompt_carries_the_storytelling_craft_and_hard_rules() -> None:
     prompt = load_prompt("write_telling")
 
-    assert prompt.version == "v2"
+    assert prompt.version == "v4"
     for phrase in (
         "`voice`",
-        "`beat_roles`",
         "turning point",
-        "never write a proverb yourself",
+        "exaggeration",
+        "never changes them, never adds a number",
+        "{{P1}}",
+        "never its words",
+        "Never\n  name or describe yourself",
+        "never invent an ending",
         "quotation marks",
         "No dialect",
-        "do not invent an ending",
+        "If `tone_class` is sensitive",
     ):
         assert phrase in prompt.text, phrase

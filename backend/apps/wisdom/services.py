@@ -1,9 +1,12 @@
-"""Rules-first proverb retrieval. No LLM call belongs in this module yet."""
+"""Proverb retrieval: rules-first candidates, and choice by meaning across the corpus."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
+from apps.llm.client import LLMGateway
+from apps.stories.drafts import ProverbRanking
 from apps.stories.models import Story
 
 from .models import Proverb
@@ -43,6 +46,46 @@ def pick_proverbs(story: Story, max_count: int = 2) -> list[ProverbSuggestion]:
     ]
 
 
-def rerank_with_llm(candidates: list[Proverb], story: Story) -> list[ProverbSuggestion]:
-    """Reserve the controlled candidate reranking hook for Phase 6B."""
-    raise NotImplementedError("LLM proverb reranking is introduced in Phase 6B.")
+@dataclass(frozen=True)
+class ChosenProverb:
+    proverb: Proverb
+    why: str
+
+
+def choose_proverbs(
+    facts: list[dict[str, str]], tone_class: str, gateway: Any | None = None
+) -> tuple[list[ChosenProverb], str]:
+    """Up to three proverbs chosen by meaning from the whole servable corpus.
+
+    The model reads every proverb's meaning, as a storyteller would, instead of a short
+    list pre-filtered by theme keywords (most imported proverbs have no themes). It
+    only returns ids; unknown ids are dropped, so it can never introduce a proverb.
+    Returns the choices and the model's reasoning, for the editor.
+    """
+    if tone_class == Story.ToneClass.SENSITIVE:
+        return [], "Sensitive story: no proverbs."
+    pool = {p.id: p for p in Proverb.objects.servable()}
+    if not pool:
+        return [], "No servable proverbs."
+    ranking = (gateway or LLMGateway()).generate_json(
+        "rerank_proverb",
+        {"facts": facts, "proverbs": [proverb_for_prompt(p) for p in pool.values()]},
+        ProverbRanking,
+    )
+    picks = [ranking.best, *ranking.alternates] if ranking.best else list(ranking.alternates)
+    chosen, seen = [], set()
+    for pick in picks:
+        if pick and pick.id in pool and pick.id not in seen:
+            seen.add(pick.id)
+            chosen.append(ChosenProverb(proverb=pool[pick.id], why=pick.why))
+    return chosen[:3], ranking.reasoning
+
+
+def proverb_for_prompt(proverb: Proverb) -> dict[str, str]:
+    """What the chooser and the writer see: wording, meaning and people, never a source."""
+    return {
+        "id": proverb.id,
+        "text": proverb.spoken_form,
+        "meaning": proverb.meaning_note,
+        "culture": proverb.culture,
+    }

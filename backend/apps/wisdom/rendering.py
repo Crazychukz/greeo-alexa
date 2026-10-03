@@ -49,16 +49,37 @@ def find_slots(template: str) -> list[str]:
     return SLOT_PATTERN.findall(template)
 
 
+# A slot with any sentence punctuation the template puts straight after it.
+SLOT_WITH_STOP = re.compile(r"\{\{(P[1-9][0-9]*)\}\}([.!?,;])?")
+TERMINAL = (".", "!", "?")
+
+
 def fill_slots(template: str, spoken_by_slot: Mapping[str, str]) -> str:
-    """Replace every slot with its spoken text, refusing unknown slots."""
+    """Replace every slot with its spoken text, refusing unknown slots.
+
+    Punctuation is merged, never doubled: a proverb that already ends a sentence
+    absorbs the template's own full stop, and a proverb that ends the beat without
+    punctuation gets one. The proverb's words are never changed.
+    """
 
     def replace(match: re.Match[str]) -> str:
-        slot = match.group(1)
+        slot, stop = match.group(1), match.group(2)
         if slot not in spoken_by_slot:
             raise RenderingError(f"Unknown proverb slot {{{{{slot}}}}}.")
-        return spoken_by_slot[slot]
+        spoken = spoken_by_slot[slot].rstrip()
+        if mid_sentence(template[: match.start()]):
+            spoken = lower_first_word(spoken)
+        if stop in {",", ";"}:
+            # The sentence goes on: a closing full stop gives way to the comma.
+            return (spoken[:-1] if spoken.endswith(".") else spoken) + stop
+        if spoken.endswith(TERMINAL):
+            return spoken
+        if stop:
+            return spoken + stop
+        at_end = not template[match.end() :].strip()
+        return spoken + "." if at_end else spoken
 
-    return SLOT_PATTERN.sub(replace, template)
+    return SLOT_WITH_STOP.sub(replace, template)
 
 
 def render_beat(beat: TellingBeat) -> RenderedBeat:
@@ -96,3 +117,25 @@ def render_beat(beat: TellingBeat) -> RenderedBeat:
         text=fill_slots(beat.text_template, spoken),
         proverbs=tuple(references),
     )
+
+
+# Opening words that are ordinary words, safe to lower-case when a proverb is woven into
+# a sentence ("She knew that a person who..."). Any other first word may be a name.
+COMMON_FIRST_WORDS = frozenset(
+    "a an the when if no none one every whoever he she it they you we what where who "
+    "though although even do don't never all those there however until money".split()
+)
+
+
+def mid_sentence(before: str) -> bool:
+    """True when the slot continues a sentence rather than starting one."""
+    text = before.rstrip()
+    return bool(text) and text[-1] not in ".!?:\n\"'“”"
+
+
+def lower_first_word(spoken: str) -> str:
+    """Lower-case only the first letter, and only of a common word; words never change."""
+    first = spoken.split(" ", 1)[0]
+    if first.lower().rstrip(",;") in COMMON_FIRST_WORDS and first[:1].isupper():
+        return spoken[:1].lower() + spoken[1:]
+    return spoken

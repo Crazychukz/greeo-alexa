@@ -118,6 +118,7 @@ class LLMGateway:
                 prompt=rendered_prompt,
                 model_id=model_id,
                 max_tokens=settings.LLM_MAX_TOKENS,
+                temperature=temperature_for_prompt(definition.name),
             )
         except Exception as error:
             self.budget.settle(reservation, 0)
@@ -194,6 +195,16 @@ def configured_backend() -> LLMBackend:
     if settings.LLM_BACKEND == "bedrock":
         return BedrockLLM()
     raise LLMError("LLM_BACKEND must be 'mock' or 'bedrock'.")
+
+
+# Extraction and checking stay deterministic; telling a tale needs some freedom of phrase.
+DEFAULT_TEMPERATURES = {"write_telling": 0.6}
+
+
+def temperature_for_prompt(prompt_name: str) -> float:
+    """LLM_<PROMPT_NAME>_TEMPERATURE overrides the default for one prompt."""
+    key = f"LLM_{prompt_name.upper()}_TEMPERATURE"
+    return float(os.environ.get(key, DEFAULT_TEMPERATURES.get(prompt_name, 0.0)))
 
 
 def model_for_prompt(prompt_name: str) -> str:

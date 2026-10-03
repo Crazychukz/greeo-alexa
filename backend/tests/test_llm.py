@@ -40,7 +40,9 @@ class SequenceBackend:
         self.outputs = iter(outputs)
         self.calls = 0
 
-    def generate(self, *, prompt: str, model_id: str, max_tokens: int) -> BackendResponse:
+    def generate(
+        self, *, prompt: str, model_id: str, max_tokens: int, temperature: float = 0.0
+    ) -> BackendResponse:
         del prompt, model_id, max_tokens
         self.calls += 1
         return BackendResponse(next(self.outputs), tokens_in=2, tokens_out=3)
@@ -55,7 +57,7 @@ def test_mock_round_trip_is_pydantic_valid_and_audited() -> None:
     assert response == FactsResponse(facts=[], synthetic=True)
     call = LLMCall.objects.get()
     assert call.backend == "mock"
-    assert call.prompt_version == "v1"
+    assert call.prompt_version == "v2"
     assert call.ok is True
 
 
@@ -169,7 +171,9 @@ class RecordingBudget:
 class FailingBackend:
     name = "mock"
 
-    def generate(self, *, prompt: str, model_id: str, max_tokens: int) -> BackendResponse:
+    def generate(
+        self, *, prompt: str, model_id: str, max_tokens: int, temperature: float = 0.0
+    ) -> BackendResponse:
         del prompt, model_id, max_tokens
         raise LLMProviderError("synthetic provider outage")
 

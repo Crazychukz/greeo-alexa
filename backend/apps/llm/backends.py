@@ -46,7 +46,9 @@ class ToolTurn:
 class LLMBackend(Protocol):
     name: str
 
-    def generate(self, *, prompt: str, model_id: str, max_tokens: int) -> BackendResponse: ...
+    def generate(
+        self, *, prompt: str, model_id: str, max_tokens: int, temperature: float = 0.0
+    ) -> BackendResponse: ...
 
     def converse_tools(
         self,
@@ -71,8 +73,14 @@ class MockLLM:
         "compare_perspectives": {"perspectives": [], "synthetic": True},
         "classify_tone": {"tone": "balanced", "synthetic": True},
         "write_telling": {
-            "beats": ["SYNTHETIC BEAT: no real-world content."],
-            "reflection": "SYNTHETIC REFLECTION: no real-world lesson.",
+            "beats": [
+                "SYNTHETIC BEAT ONE: no real-world content.",
+                "SYNTHETIC BEAT TWO: no real-world content.",
+                "SYNTHETIC BEAT THREE: no real-world content.",
+            ],
+            "proverb_after_beat": {},
+            "closing_kind": "reflection",
+            "closing_text": "SYNTHETIC REFLECTION: no real-world lesson.",
             "synthetic": True,
         },
         "check_telling": {"valid": True, "issues": [], "synthetic": True},
@@ -80,14 +88,21 @@ class MockLLM:
             "beats": ["SYNTHETIC REVISED BEAT: no real-world content."],
             "synthetic": True,
         },
-        "rerank_proverb": {"ranked_candidate_ids": [], "synthetic": True},
+        "rerank_proverb": {
+            "reasoning": "SYNTHETIC: no real-world choice.",
+            "best": None,
+            "alternates": [],
+            "synthetic": True,
+        },
         "summarize_update": {"summary": "SYNTHETIC UPDATE.", "synthetic": True},
         "grade_recall": {"score": 0, "synthetic": True},
     }
 
-    def generate(self, *, prompt: str, model_id: str, max_tokens: int) -> BackendResponse:
+    def generate(
+        self, *, prompt: str, model_id: str, max_tokens: int, temperature: float = 0.0
+    ) -> BackendResponse:
         """Return a canned JSON payload identified by the registry prompt heading."""
-        del model_id, max_tokens
+        del model_id, max_tokens, temperature
         prompt_name = prompt.splitlines()[0].removeprefix("PROMPT_NAME: ").strip()
         try:
             payload = self._OUTPUTS[prompt_name]
@@ -127,7 +142,9 @@ class BedrockLLM:
             )
         self.client = client
 
-    def generate(self, *, prompt: str, model_id: str, max_tokens: int) -> BackendResponse:
+    def generate(
+        self, *, prompt: str, model_id: str, max_tokens: int, temperature: float = 0.0
+    ) -> BackendResponse:
         """Call Converse using JSON-only instructions and return its usage metadata."""
         if not model_id:
             raise LLMProviderError(
@@ -139,7 +156,7 @@ class BedrockLLM:
             "modelId": model_id,
             "system": [{"text": JSON_ONLY_INSTRUCTION}],
             "messages": [{"role": "user", "content": [{"text": prompt}]}],
-            "inferenceConfig": {"maxTokens": max_tokens, "temperature": 0},
+            "inferenceConfig": {"maxTokens": max_tokens, "temperature": temperature},
         }
         last_error: Exception | None = None
         for attempt in range(settings.LLM_PROVIDER_RETRIES + 1):

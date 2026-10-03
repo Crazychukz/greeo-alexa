@@ -61,4 +61,4 @@ talk:
 # Retell the top headline of a live feed with the configured model; output in lab/runs/.
 lab:
 	mkdir -p lab
-	$(COMPOSE) run --rm -v "$(CURDIR)/lab:/app/lab" -e FEED="$(FEED)" -e ITEM="$(ITEM)" -e UNREVIEWED="$(UNREVIEWED)" web python /app/scripts/lab_retell.py
+	$(COMPOSE) run --rm -v "$(CURDIR)/lab:/app/lab" -e FEED="$(FEED)" -e ITEM="$(ITEM)" -e LLM_ESTABLISH_FACTS_MODEL_ID -e LLM_RERANK_PROVERB_MODEL_ID -e LLM_WRITE_TELLING_MODEL_ID web python /app/scripts/lab_retell.py
