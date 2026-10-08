@@ -57,7 +57,7 @@ def test_mock_round_trip_is_pydantic_valid_and_audited() -> None:
     assert response == FactsResponse(facts=[], synthetic=True)
     call = LLMCall.objects.get()
     assert call.backend == "mock"
-    assert call.prompt_version == "v2"
+    assert call.prompt_version == "v4"
     assert call.ok is True
 
 

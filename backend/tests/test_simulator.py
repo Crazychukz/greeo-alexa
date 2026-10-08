@@ -215,10 +215,20 @@ def test_start_over_clears_the_conversation(story: Story, simulator: SessionStor
     assert simulator.load("s1").last_story_id is None
 
 
-def test_help_needs_no_tool() -> None:
+def test_help_comes_from_the_mcp_server() -> None:
     result = say("what can you do?")
 
-    assert result.tool_trace == [] and "short tales" in result.spoken
+    assert tools_called(result) == ["get_help"] and "short spoken tales" in result.spoken
+
+
+def test_behind_the_scenes_lists_the_demo_stories(story: Story) -> None:
+    story.is_demo = True
+    story.save(update_fields=["is_demo"])
+
+    result = say("tell me the behind the scenes stories")
+
+    assert tools_called(result) == ["get_demo_stories"]
+    assert result.display["structured"]["stories"][0]["story_id"] == story.pk
 
 
 def test_every_turn_is_traced_with_its_host_mode(story: Story) -> None:
@@ -293,8 +303,22 @@ def test_llm_host_reply_without_tools_is_kept_short_and_safe() -> None:
     long_reply = say("hello", host=LLMHost(gateway=ScriptedGateway([chatty])))
     unsafe = say("hello", host=LLMHost(gateway=ScriptedGateway([jargon])))
 
+    assert "Sentence 1 here" not in long_reply.spoken  # too long for small talk: not spoken
     assert len(long_reply.spoken.split()) <= 75
     assert unsafe.spoken == NOTHING_SAID
+
+
+def test_llm_host_inventing_stories_without_tools_is_replaced_by_a_real_search(
+    story: Story,
+) -> None:
+    """Seen live with Nova Lite: a made-up list of stories about Messi, no tool called."""
+    invented = says("Here are some stories about Messi: Messi's return to Barcelona.")
+
+    result = say("tell me about Messi", host=LLMHost(gateway=ScriptedGateway([invented])))
+
+    assert tools_called(result) == ["search_events"]
+    assert "Barcelona" not in result.spoken
+    assert result.spoken.startswith("I couldn't find a story about")  # honest: none exist
 
 
 def test_llm_host_answering_a_story_question_without_tools_is_overruled(story: Story) -> None:
@@ -332,6 +356,35 @@ def test_model_reasoning_is_never_spoken() -> None:
 
     assert parse_tool_turn(closed).text == "You're welcome."
     assert parse_tool_turn(cut_off).text == "Glad to help."
+
+
+def test_a_guest_can_continue_a_tale_and_ask_for_its_facts(story: Story) -> None:
+    """Seen in the browser: a guest's "continue" chip lost the story and restarted."""
+    gateway = ScriptedGateway([wants("tell_tale", story_id=story.pk, beat=1), says("")])
+    host = LLMHost(gateway=gateway)
+    first = run_turn("guest-1", "tell me the story", {}, host=host)
+    assert first.display["structured"]["beat"] == 1
+
+    gateway.turns = [wants("tell_tale"), says("")]  # the model names neither story nor beat
+    second = run_turn("guest-1", "continue", {}, host=host)
+    assert second.tool_trace[0]["args"] == {"story_id": story.pk, "beat": 2}
+    assert second.display["structured"]["beat"] == 2
+
+    gateway.turns = [wants("get_facts"), says("")]
+    facts = run_turn("guest-1", "the facts", {}, host=host)
+    assert facts.tool_trace[0]["args"] == {"story_id": story.pk}
+    assert facts.display["tool"] == "get_facts" and not facts.display["is_error"]
+
+
+def test_a_guest_never_skips_a_beat_after_a_single_search_match(story: Story) -> None:
+    gateway = ScriptedGateway([wants("search_events", query="footbridge"), says("")])
+    host = LLMHost(gateway=gateway)
+    run_turn("guest-2", "tell me about the footbridge", {}, host=host)
+
+    gateway.turns = [wants("tell_tale", beat=2), says("")]  # the model guesses beat 2
+    result = run_turn("guest-2", "continue", {}, host=host)
+
+    assert result.tool_trace[0]["args"] == {"story_id": story.pk, "beat": 1}
 
 
 def test_llm_host_keeps_only_plain_text_history(story: Story, simulator: SessionStore) -> None:
@@ -540,3 +593,102 @@ def test_cors_allows_listed_origins_only(api: APIClient) -> None:
     assert allowed["Access-Control-Allow-Origin"] == "http://localhost:4200"
     assert "Access-Control-Allow-Origin" not in blocked
     assert "Access-Control-Allow-Origin" not in outside  # CORS covers the simulator API only
+
+
+def test_tapping_a_story_tells_it_without_asking_the_model(
+    story: Story, api: APIClient, simulator: SessionStore
+) -> None:
+    response = api.post(
+        "/api/simulator/turn",
+        {"session_id": "web-3", "text": "Tell me this story", "story_id": story.pk},
+        format="json",
+    ).json()
+
+    assert [step["tool"] for step in response["tool_trace"]] == ["tell_tale"]
+    assert response["host_mode"] == "tap"
+    assert response["display"]["structured"]["beat"] == 1
+    assert simulator.load("web-3").last_story_id == story.pk
+    follow = post_turn(api, "web-3", "continue").json()  # and the tale carries on
+    assert follow["display"]["structured"]["beat"] == 2
+
+
+def test_turn_rejects_a_malformed_story_id(api: APIClient) -> None:
+    response = api.post(
+        "/api/simulator/turn",
+        {"session_id": "web-4", "text": "hi", "story_id": "../etc"},
+        format="json",
+    )
+    assert response.status_code == 400
+
+
+def test_stories_endpoint_lists_demo_stories_and_counts_the_news(
+    story: Story, api: APIClient
+) -> None:
+    assert api.get("/api/simulator/stories").json() == {"demo": [], "news_count": 1}
+
+    story.is_demo = True
+    story.save(update_fields=["is_demo"])
+    body = api.get("/api/simulator/stories").json()
+
+    assert body["news_count"] == 0
+    assert [item["story_id"] for item in body["demo"]] == [story.pk]
+    assert body["demo"][0]["title"] == story.handle
+
+
+def test_a_story_id_the_model_guessed_is_replaced_by_the_story_being_heard(story: Story) -> None:
+    """Seen live: after a tale, the model asked for facts about a made-up story id."""
+    say("tell me about the footbridge")  # the footbridge story is now in context
+    gateway = ScriptedGateway([wants("get_facts", story_id="st_madeup123"), says("")])
+
+    result = say("the facts", host=LLMHost(gateway=gateway))
+
+    assert result.tool_trace[0]["args"] == {"story_id": story.pk}
+    assert not result.display["is_error"]
+
+
+def test_the_model_is_told_what_is_on_screen(story: Story) -> None:
+    """Seen live: "tell me the second one" failed; the model never saw the listed ids."""
+    say("what's new?")  # a listing, kept in the session
+    gateway = ScriptedGateway([says("Which one?")])
+
+    say("tell me the first one", host=LLMHost(gateway=gateway))
+
+    sent = gateway.requests[0]["messages"][-1]["content"][0]["text"]
+    assert sent.startswith("tell me the first one")
+    assert f"1. {story.handle} (story_id {story.pk})" in sent
+
+
+def test_greeo_carries_on_with_its_own_tale_without_a_model(story: Story, api: APIClient) -> None:
+    """Seen in the browser: auto-continue went through the model and failed on budget."""
+    first = api.post(
+        "/api/simulator/turn",
+        {"session_id": "auto-1", "text": "Tell me this story", "story_id": story.pk},
+        format="json",
+    ).json()
+    beats = first["display"]["structured"]["beats_total"]
+    for expected in range(2, beats + 1):
+        part = api.post(
+            "/api/simulator/turn",
+            {"session_id": "auto-1", "text": "continue", "story_id": story.pk,
+             "follow_up": "next_beat"},
+            format="json",
+        ).json()  # fmt: skip
+        assert part["host_mode"] == "auto"
+        assert part["display"]["structured"]["beat"] == expected
+
+    closing = api.post(
+        "/api/simulator/turn",
+        {"session_id": "auto-1", "text": "the moral", "story_id": story.pk,
+         "follow_up": "closing"},
+        format="json",
+    ).json()  # fmt: skip
+    assert [step["tool"] for step in closing["tool_trace"]] == ["get_moral"]
+
+
+def test_a_follow_up_needs_its_story(api: APIClient) -> None:
+    response = api.post(
+        "/api/simulator/turn",
+        {"session_id": "auto-2", "text": "continue", "follow_up": "next_beat"},
+        format="json",
+    )
+    assert response.status_code == 400

@@ -1,0 +1,30 @@
+<form class="ask" (ngSubmit)="send()">
+  <button
+    type="button"
+    class="mic"
+    [class.on]="microphone.listening()"
+    [disabled]="!microphone.supported || conversation?.busy()"
+    [attr.aria-pressed]="microphone.listening()"
+    [attr.aria-label]="microphone.listening() ? 'Stop listening' : 'Speak to Greeo'"
+    (click)="toggleMic()"
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+    </svg>
+  </button>
+  <input
+    name="say"
+    type="text"
+    autocomplete="off"
+    maxlength="500"
+    [placeholder]="microphone.listening() ? 'Listening…' : placeholder()"
+    [ngModel]="microphone.listening() ? microphone.heard() : text()"
+    (ngModelChange)="text.set($event)"
+    aria-label="What would you like to hear?"
+  />
+  <button type="submit" class="send" [disabled]="!text().trim() || conversation?.busy()">Ask</button>
+</form>
+@if (microphone.problem(); as problem) {
+  <p class="problem" role="status">{{ problem }}</p>
+}

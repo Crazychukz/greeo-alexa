@@ -53,6 +53,16 @@ class StoryList(Envelope):
     has_more: bool
 
 
+class HelpResult(Envelope):
+    """What Greeo can do, fitted to where the listener is."""
+
+    abilities: list[str] = Field(description="Short labels for what Greeo can do.")
+    current_story_id: str | None = Field(
+        default=None, description="The story the listener can continue, if any."
+    )
+    current_title: str | None = None
+
+
 class ProverbFlag(BaseModel):
     slot: str
     culture: str

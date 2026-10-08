@@ -63,6 +63,10 @@ def no_cloud_calls(settings, monkeypatch) -> None:
     settings.SPEECH_BACKEND = "mock"
     # The developer's .env may serve the demo corpus; tests start from the strict rule.
     settings.DEMO_ALLOW_SINGLE_SOURCE_PROVERBS = False
+    # Tests run on SYNTHETIC stories, even when the .env hides them from the demo.
+    settings.ALLOW_SYNTHETIC = True
+    # The host follows the (mock) backend unless a test picks one.
+    settings.SIMULATOR_HOST = ""
     for name in (
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",

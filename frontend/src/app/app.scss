@@ -1,0 +1,353 @@
+.stage {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  --frame-room: 48px; // the vertical padding, which the device's size leaves free
+
+  // Desktop: room above the device for the 80px logo (12px from the top, plus a gap).
+  @media (min-width: 768px) {
+    padding-top: 100px;
+    --frame-room: 72px;
+  }
+}
+
+// The logo, top centre of the page, above the device.
+.brand-logo {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 10;
+  display: block;
+  line-height: 0;
+
+  img {
+    width: auto;
+    height: 52px;
+  }
+
+  @media (min-width: 768px) {
+    img {
+      height: 80px;
+    }
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--fire);
+    outline-offset: 4px;
+    border-radius: 8px;
+  }
+}
+
+// Page-level controls, top right: they sit on the page, so they follow its colours.
+.controls {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  display: flex;
+  gap: 18px;
+}
+
+// Switches in the style of the device's own quick settings: a pill track, a round knob
+// carrying the icon, the name underneath. Blue and knob-right when on.
+.switch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.track {
+  --track-width: 72px;
+  --knob: 32px;
+  position: relative;
+  width: var(--track-width);
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--switch-off);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.25);
+  cursor: pointer;
+  transition: background-color 200ms ease;
+
+  &[aria-checked='true'] {
+    background: var(--switch-on);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--fire);
+    outline-offset: 3px;
+  }
+}
+
+.knob {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: grid;
+  place-items: center;
+  width: var(--knob);
+  height: var(--knob);
+  border-radius: 50%;
+  background: var(--switch-knob-off);
+  color: var(--switch-icon-off);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  transition:
+    transform 200ms ease,
+    background-color 200ms ease,
+    color 200ms ease;
+
+  [aria-checked='true'] > & {
+    transform: translateX(calc(var(--track-width) - var(--knob) - 8px));
+    background: #e4e6ea;
+    color: #1d2230;
+  }
+
+  svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+.switch-label {
+  color: var(--chrome-ink);
+  font: 600 13px var(--sans);
+}
+
+// The device -------------------------------------------------------------------------
+
+.device {
+  --bezel: #0b0c0f; // black glass around the panel
+  // --rim, --rim-dark and --rim-edge come from the device finish (styles.scss).
+  --bezel-size: 22px;
+  --recline: 16deg; // how far the screen leans back
+  // As large as the window allows, keeping the screen and its base on one screen.
+  width: min(100%, calc((100dvh - var(--frame-room, 48px)) * 13 / 9 / 1.22));
+  margin-inline: auto;
+  perspective: 1500px; // a closer viewer exaggerates the lean
+  perspective-origin: 50% 15%; // seen from slightly above
+}
+
+.screen {
+  position: relative;
+  aspect-ratio: 12 / 8;
+  padding: var(--bezel-size);
+  border-radius: 34px;
+  // Black glass, very slightly lighter at the top where it catches the light.
+  background: linear-gradient(180deg, #17191e 0%, var(--bezel) 18%, var(--bezel) 100%);
+  transform-origin: 50% 100%; // hinged at the bottom edge, so the top leans away
+  transform: rotateX(var(--recline));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    // light catching the glass edge
+    0 0 0 2px var(--rim),
+    // brushed-metal rim
+    0 0 0 3px rgb(0 0 0 / 0.35),
+    // hairline where rim meets air
+    0 9px 0 1px var(--rim-dark),
+    // the metal edge, seen along the bottom
+    0 11px 0 1px var(--rim-edge),
+    0 40px 45px -18px rgb(0 0 0 / 0.55),
+    // cast shadow
+    0 70px 90px -40px rgb(0 0 0 / 0.45);
+}
+
+// Glass reflection across the whole front: a broad soft sheen from the top left, and a
+// faint diagonal streak. pointer-events: none keeps it from blocking the page.
+.screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      115deg,
+      transparent 0%,
+      transparent 38%,
+      rgb(255 255 255 / 0.025) 44%,
+      transparent 52%
+    ),
+    radial-gradient(120% 80% at 0% 0%, rgb(255 255 255 / 0.07), transparent 55%);
+}
+
+// Power-on, once per load: the panel starts black, a soft glow blooms from the middle,
+// then clears to the screen. The overlay sits above everything and never takes a tap.
+.display::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  border-radius: inherit;
+  background: radial-gradient(60% 55% at 50% 48%, rgb(90 130 220 / 0.22), #000 72%);
+  pointer-events: none;
+  animation: power-on 650ms ease-out 80ms both;
+}
+
+@keyframes power-on {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .display::after {
+    animation-duration: 1ms;
+  }
+}
+
+.display {
+  position: relative;
+  height: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  color: var(--ink);
+  // The panel sits under the glass: a hairline edge and a soft inner shadow.
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.04),
+    inset 0 0 18px rgb(0 0 0 / 0.55);
+  // Near-black at the top, deepening into navy blues at the bottom, with gentle
+  // variation along the bottom so it doesn't read as a flat ramp.
+  background:
+    radial-gradient(70% 55% at 22% 100%, rgb(24 56 98 / 0.55), transparent 70%),
+    radial-gradient(60% 50% at 85% 100%, rgb(14 36 66 / 0.5), transparent 70%),
+    linear-gradient(180deg, #040813 0%, #060d1c 30%, #0a1a33 62%, #0f2442 82%, #122b4c 100%);
+}
+
+// Camera and two microphones above the panel.
+.camera {
+  position: absolute;
+  top: calc(var(--bezel-size) / 2 - 5px);
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 26px;
+
+  span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #23262d; // microphone holes
+  }
+
+  span:nth-child(2) {
+    // The lens: a dark glass ring with a faint blue glint.
+    width: 10px;
+    height: 10px;
+    background: radial-gradient(circle at 35% 35%, #3a4a6a 0%, #11141b 45%, #050608 75%);
+    box-shadow: 0 0 0 1.5px #1c1f25;
+  }
+}
+
+.base {
+  width: 50%;
+  margin: -14px auto 0;
+  background-image: url('/speaker-bg.svg');
+  background-size: cover;
+  background-position: bottom;
+  background-repeat: no-repeat;
+  height: 72px;
+}
+
+.screen-nav {
+  width: 100%;
+  position: absolute;
+  top: 0;
+  height: 40px;
+  color: #ffffff;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 1fr;
+  padding: 15px 24px;
+  font-size: 24px;
+}
+.weather-label {
+  position: relative;
+  padding-left: 35px;
+  &:before {
+    width: 30px;
+    height: 24px;
+    background-repeat: no-repeat;
+    background-position: left;
+    position: absolute;
+    left: 0;
+    display: flex;
+    content: '';
+    background-size: contain;
+    top: 1px;
+    background-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDI2LjIuMSwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9Il94MzJfIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCIKCSB2aWV3Qm94PSIwIDAgNTEyIDUxMiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNTEyIDUxMjsiIHhtbDpzcGFjZT0icHJlc2VydmUiPgo8Zz4KCTxwYXRoIHN0eWxlPSJmaWxsOiNGRkRENTA7IiBkPSJNMTE2LDI2OS45YzE3LTEwLjEsMzYuOC0xNS45LDU4LTE1LjljMi42LDAsNS4xLDAuMSw3LjcsMC4yYzcuMi0yNC43LDIxLTQ2LjQsMzkuMi02My4xCgkJYy0zLjUtMzkuNC0zNi42LTcwLjMtNzYuOS03MC4zYy00Mi42LDAtNzcuMiwzNC42LTc3LjIsNzcuMkM2Ni44LDIzMC44LDg3LjIsMjU4LjcsMTE2LDI2OS45eiIvPgoJPHJlY3QgeD0iMTM1LjciIHk9IjU0IiBzdHlsZT0iZmlsbDojRkZERDUwOyIgd2lkdGg9IjE2LjciIGhlaWdodD0iNDUuOSIvPgoJPHBvbHlnb24gc3R5bGU9ImZpbGw6I0ZGREQ1MDsiIHBvaW50cz0iMTAyLjIsMTA4LjkgNzkuMiw2OS4xIDY0LjgsNzcuNSA4Ny43LDExNy4yIAkiLz4KCTxwb2x5Z29uIHN0eWxlPSJmaWxsOiNGRkRENTA7IiBwb2ludHM9IjE1LjEsMTMzLjIgNTQuOSwxNTYuMiA2My4yLDE0MS43IDIzLjUsMTE4LjggCSIvPgoJPHBvbHlnb24gc3R5bGU9ImZpbGw6I0ZGREQ1MDsiIHBvaW50cz0iNDUuOSwxODkuNyAwLDE4OS43IDAsMjA2LjQgNDUuOSwyMDYuMyAJIi8+Cgk8cG9seWdvbiBzdHlsZT0iZmlsbDojRkZERDUwOyIgcG9pbnRzPSIxNS4xLDI2Mi44IDIzLjUsMjc3LjIgNjMuMiwyNTQuMyA1NC45LDIzOS44IAkiLz4KCQoJCTxyZWN0IHg9IjIyNS45IiB5PSIxMjkuMSIgdHJhbnNmb3JtPSJtYXRyaXgoMC44NjYxIC0wLjQ5OTggMC40OTk4IDAuODY2MSAtMzUuMzk5MyAxNDIuNzcxMykiIHN0eWxlPSJmaWxsOiNGRkRENTA7IiB3aWR0aD0iNDUuOSIgaGVpZ2h0PSIxNi43Ii8+Cgk8cG9seWdvbiBzdHlsZT0iZmlsbDojRkZERDUwOyIgcG9pbnRzPSIyMjMuMiw3Ny41IDIwOC44LDY5LjEgMTg1LjgsMTA4LjkgMjAwLjMsMTE3LjIgCSIvPgo8L2c+CjxwYXRoIHN0eWxlPSJmaWxsOiNGRkZGRkY7IiBkPSJNNDMyLDI5OGMwLDAtMC4xLDAtMC4xLDBjMC4xLTEuMywwLjEtMi43LDAuMS00YzAtNjQuMS01MS45LTExNi0xMTYtMTE2Yy02MCwwLTEwOS40LDQ1LjYtMTE1LjQsMTA0CgljLTguNC0yLjYtMTcuMy00LTI2LjYtNGMtNDkuNywwLTkwLDQwLjMtOTAsOTBjMCw0OS43LDQwLjMsOTAsOTAsOTBoMjU4YzQ0LjIsMCw4MC0zNS44LDgwLTgwQzUxMiwzMzMuOCw0NzYuMiwyOTgsNDMyLDI5OHoiLz4KPC9zdmc+Cg==');
+  }
+}
+.nav-left-col,
+.nav-right-col {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.nav-right-col {
+  justify-content: flex-end;
+}
+.home-icon {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav-btn {
+  padding: 0;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 50%;
+  box-shadow: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #494b4e;
+  svg {
+    width: 50%;
+    display: block;
+  }
+}
+.page-wrapper {
+  padding: 120px 24px 0;
+  height: 100%;
+}
+// On phones the tilt costs readability: show the screen flat.
+@media (max-width: 767px) {
+  .device {
+    --bezel-size: 10px;
+  }
+  .screen {
+    aspect-ratio: 4 / 3;
+    transform: none;
+    border-radius: 22px;
+  }
+  .base {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen {
+    transition: none;
+  }
+}

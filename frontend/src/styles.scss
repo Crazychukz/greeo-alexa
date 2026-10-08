@@ -1,1 +1,68 @@
-/* You can add global styles to this file, and also import other style files */
+:root {
+  --night: #0e1424;
+  --night-2: #172038;
+  --line: #2e3a5c;
+  --ink: #f6eedd;
+  --muted: #c2bba9;
+  --fire: #f2a541;
+  --ember: #e8794a;
+  --on-fire: #1a1408;
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
+  --gap: 16px;
+  --radius: 14px;
+  --page: #080b14;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Device finish, set on <html data-device="..."> by the app shell.
+ * A dark (graphite) device sits on a light page; a light (silver) device on a dark page.
+ */
+html[data-device='light'] {
+  --rim: #c9c6bf; // champagne-silver metal
+  --rim-dark: #8e8b85;
+  --rim-edge: #5f5c57;
+  --page-bg: radial-gradient(90% 60% at 50% 0%, #141c33 0%, #080b14 70%);
+  --chrome-ink: #c2bba9; // page-level buttons on the dark page
+  --chrome-bg: rgb(14 20 36 / 0.7);
+  --chrome-line: #2e3a5c;
+  --switch-on: #3d6fe0;
+  --switch-off: #2a2e37;
+  --switch-knob-off: #3d424d;
+  --switch-icon-off: #c9ccd3;
+}
+
+html[data-device='dark'] {
+  --rim: #4b4d53; // graphite metal
+  --rim-dark: #303237;
+  --rim-edge: #1d1e22;
+  --page-bg: radial-gradient(90% 60% at 50% 0%, #ffffff 0%, #e7e4de 75%);
+  --chrome-ink: #3a3d45; // page-level buttons on the light page
+  --chrome-bg: rgb(255 255 255 / 0.75);
+  --chrome-line: #cfcbc3;
+  --switch-on: #3d6fe0;
+  --switch-off: #d5d2cb;
+  --switch-knob-off: #f4f3f0;
+  --switch-icon-off: #4a4e57;
+}
+
+body {
+  background: var(--page-bg, #080b14);
+  transition: background 300ms ease;
+}

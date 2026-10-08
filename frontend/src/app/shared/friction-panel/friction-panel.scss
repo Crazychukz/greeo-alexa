@@ -1,0 +1,133 @@
+// Only what the friction log adds to the About panel's sheet: entry tiles that open,
+// severity chips, and the full-entry view.
+
+.panel {
+  // Taller content than About: the sheet scrolls, the header and pills stay put.
+  height: 100%;
+}
+
+.pills {
+  flex: none;
+}
+
+.pill-label {
+  font-variant-numeric: tabular-nums;
+}
+
+.tiles.list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: auto;
+}
+
+.entry-tile {
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--tile-hover);
+  }
+}
+
+.severity {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.12);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+
+  &[data-level='critical'],
+  &[data-level='high'] {
+    background: rgb(232 93 74 / 0.3);
+  }
+
+  &[data-level='medium'] {
+    background: rgb(232 163 61 / 0.3);
+  }
+
+  &[data-level='low'] {
+    background: rgb(92 184 130 / 0.28);
+  }
+}
+
+.entry {
+  min-height: 0;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: var(--tile);
+  overflow: auto;
+  animation: fade-in 200ms ease both;
+}
+
+.entry-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+
+  h3 {
+    margin: 2px 0 2px;
+    font: 600 17px var(--sans);
+  }
+}
+
+.meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.round.small {
+  width: 36px;
+  height: 36px;
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 12px;
+
+  dt {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  dd {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  a {
+    color: #9dbbff;
+  }
+}
+
+@media (max-width: 720px) {
+  .tiles.list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}

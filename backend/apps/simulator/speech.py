@@ -96,7 +96,7 @@ class PollySpeech:
 
             client = boto3.client(
                 "polly",
-                region_name=settings.AWS_REGION,
+                region_name=settings.POLLY_REGION,
                 config=Config(connect_timeout=5, read_timeout=10, retries={"max_attempts": 0}),
             )
         self.client = client

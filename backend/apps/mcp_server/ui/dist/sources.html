@@ -6,59 +6,76 @@
 <meta name="color-scheme" content="dark light">
 <title>Greeo: The sources</title>
 <style>
-/* Greeo design system: night sky, firelight accents, a plain moon. No external assets. */
+/* Greeo design system, in the Echo Show's own card style: slate panels on the screen's
+   night blue, a small label over a plain title, firelight only for proverbs and progress.
+   No external assets. The page itself is transparent, so the card sits on the screen. */
 :root {
-  --night: #0e1424; --night-2: #172038; --line: #2e3a5c;
-  --ink: #f6eedd; --muted: #c2bba9; --fire: #f2a541; --ember: #e8794a; --on-fire: #1a1408;
+  --night: #0b1424; --card: rgba(58, 68, 84, .72); --panel: rgba(255, 255, 255, .07);
+  --line: rgba(255, 255, 255, .08); --hover: rgba(255, 255, 255, .13);
+  --ink: #f3f5f8; --muted: #b6bdc8; --fire: #f2a541; --ember: #e8794a; --on-fire: #1a1408;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
-  --gap: 16px; --radius: 14px; --inset-t: 0px; --inset-r: 0px; --inset-b: 0px; --inset-l: 0px;
+  --gap: 12px; --radius: 16px; --inset-t: 0px; --inset-r: 0px; --inset-b: 0px; --inset-l: 0px;
 }
 :root[data-theme="light"] {
-  --night: #fbf5e9; --night-2: #f1e7d2; --line: #d8cbb0;
+  --night: #fbf5e9; --card: rgba(255, 255, 255, .85); --panel: rgba(25, 29, 44, .05);
+  --line: rgba(25, 29, 44, .1); --hover: rgba(25, 29, 44, .09);
   --ink: #191d2c; --muted: #4b4f61; --fire: #8f4a00; --ember: #a3401c; --on-fire: #fffaf0;
 }
+/* Stated, not left to the meta tag: a browser keeps an embedded card see-through only
+   when the card's colour scheme matches the one its host gives the frame. */
+:root { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--night); color: var(--ink); }
+html, body { margin: 0; background: transparent; color: var(--ink); }
 body {
-  font: 18px/1.5 var(--sans);
-  padding: calc(var(--gap) + var(--inset-t)) calc(var(--gap) + var(--inset-r))
-           calc(var(--gap) + var(--inset-b)) calc(var(--gap) + var(--inset-l));
+  font: 15px/1.5 var(--sans);
+  padding: var(--inset-t) var(--inset-r) var(--inset-b) var(--inset-l);
 }
-.card { max-width: 768px; min-height: 448px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--gap); }
+.card {
+  max-width: 768px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--gap);
+  padding: 16px 18px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line);
+}
 .size-l .card { max-width: 1100px; }
-.size-l body, .size-l { font-size: 21px; }
-.size-s body, .size-s { font-size: 16px; }
+/* A host that gives the card a fixed height: fill it, scroll the text inside, and keep
+   the header and the buttons in view. A host that sizes to content never sets this. */
+.fixed-height, .fixed-height body { height: 100%; }
+.fixed-height .card { height: 100%; }
+.fixed-height .content { min-height: 0; overflow-y: auto; }
+.fixed-height .top, .fixed-height .strip, .fixed-height .next { flex: none; }
 
-.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: .04em; color: var(--fire); }
-.moon { width: 26px; height: 26px; flex: none; }
-.moon .disc { fill: var(--ink); } .moon .bite { fill: var(--night); }
-.title { flex: 1 1 240px; margin: 0; font: 600 1rem/1.3 var(--sans); color: var(--muted); }
-.meta { display: flex; gap: 8px; flex-wrap: wrap; }
-.chip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 12px; font-size: .8rem; color: var(--muted); white-space: nowrap; }
-.chip.fire { border-color: var(--fire); color: var(--fire); }
+/* Header, like the reference's "Luxury Spa" over "Hammer and Steam". */
+.top { display: flex; align-items: flex-start; gap: 4px 12px; flex-wrap: wrap; }
+.heading { flex: 1 1 220px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 6px; font: 500 12px/1.3 var(--sans); color: var(--muted); }
+.moon { width: 14px; height: 14px; flex: none; }
+.moon .disc { fill: var(--muted); } .moon .bite { fill: #3a4454; }
+.title { margin: 2px 0 0; font: 600 17px/1.3 var(--sans); color: var(--ink); }
+.meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border-radius: 999px; padding: 2px 10px; font-size: 11px; color: var(--muted); background: var(--panel); white-space: nowrap; }
+.chip.fire { color: var(--fire); }
 
 .strip { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
-.strip li { font-size: .7rem; font-weight: 700; letter-spacing: .08em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
-.strip li[data-state="heard"] { border-color: var(--muted); color: var(--ink); }
+.strip li { font-size: 10px; font-weight: 700; letter-spacing: .08em; padding: 3px 9px; border-radius: 999px; background: var(--panel); color: var(--muted); }
+.strip li[data-state="heard"] { color: var(--ink); }
 .strip li[data-state="heard"]::before { content: "\2713\00a0"; }
-.strip li[data-state="current"] { background: var(--fire); border-color: var(--fire); color: var(--on-fire); }
+.strip li[data-state="current"] { background: var(--fire); color: var(--on-fire); }
 
-.content { flex: 1; display: flex; flex-direction: column; gap: var(--gap); justify-content: center; }
-.content h2 { margin: 0; font: 700 .8rem/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--fire); }
+.content { flex: 1; display: flex; flex-direction: column; gap: var(--gap); }
+.content h2 { margin: 0; font: 600 12px/1.2 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .content p { margin: 0; }
-.panel { background: var(--night-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
-.calm { font: italic 1.15rem/1.5 var(--serif); color: var(--muted); text-align: center; padding: 24px 8px; }
+.panel { background: var(--panel); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.calm { font: italic 15px/1.5 var(--sans); color: var(--muted); text-align: center; padding: 16px 8px; }
 .row { display: flex; flex-wrap: wrap; gap: 6px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* What to ask next, as small option cards, like the reference's "Afternoon" tiles. */
 .next { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.next .label { font-size: .75rem; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
-.next button { font: inherit; font-size: .9rem; color: var(--ink); background: transparent; border: 1px solid var(--fire); border-radius: 999px; padding: 8px 16px; min-height: 44px; cursor: pointer; }
-.next button:hover { background: var(--night-2); }
+.next .label { width: 100%; font-size: 11px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.next button { font: 600 13px/1.2 var(--sans); color: var(--ink); background: var(--panel); border: 0; border-radius: 12px; padding: 10px 14px; min-height: 40px; cursor: pointer; }
+.next button:hover { background: var(--hover); }
 .next button:focus-visible { outline: 3px solid var(--fire); outline-offset: 2px; }
-.next button:disabled { opacity: .5; cursor: default; border-color: var(--line); }
+.next button:disabled { opacity: .5; cursor: default; }
 
 /* Motion moves text a little but never hides it: a host that pauses animations still shows it. */
 @media (prefers-reduced-motion: no-preference) {
@@ -66,7 +83,7 @@ body {
   @keyframes rise { from { transform: translateY(6px); } to { transform: none; } }
 }
 .evidence { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-.evidence .headline { font: 400 1.05rem/1.35 var(--serif); }
+.evidence .headline { font: 500 15px/1.4 var(--sans); }
 .evidence .who { font-weight: 700; }
 .group { display: flex; flex-direction: column; gap: 8px; }
 </style>
@@ -74,13 +91,15 @@ body {
 <body data-card="sources">
 <div class="card">
   <header class="top">
-    <div class="brand">
-      <svg class="moon" viewBox="0 0 26 26" aria-hidden="true" focusable="false">
-        <circle class="disc" cx="13" cy="13" r="11"/><circle class="bite" cx="18" cy="10" r="9"/>
-      </svg>
-      <span>Greeo</span>
+    <div class="heading">
+      <div class="brand">
+        <svg class="moon" viewBox="0 0 26 26" aria-hidden="true" focusable="false">
+          <circle class="disc" cx="13" cy="13" r="11"/><circle class="bite" cx="18" cy="10" r="9"/>
+        </svg>
+        <span>Greeo · The sources</span>
+      </div>
+      <h1 class="title" id="title">The sources</h1>
     </div>
-    <h1 class="title" id="title">The sources</h1>
     <div class="meta" id="meta"></div>
   </header>
   <ol class="strip" id="strip" aria-label="Parts of this story"></ol>
@@ -137,6 +156,8 @@ body {
     var width = box.width || box.maxWidth || ctx.maxWidth || window.innerWidth;
     root.classList.remove("size-s", "size-m", "size-l");
     root.classList.add(width < 600 ? "size-s" : width >= 1000 ? "size-l" : "size-m");
+    /* MCP Apps: containerDimensions.height means a fixed frame; maxHeight means flexible. */
+    root.classList.toggle("fixed-height", typeof box.height === "number");
     var inset = ctx.safeAreaInsets || {};
     ["top", "right", "bottom", "left"].forEach(function (side) {
       root.style.setProperty("--inset-" + side.charAt(0), (inset[side] || 0) + "px");

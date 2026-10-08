@@ -9,6 +9,7 @@ class LLMCall(models.Model):
     class Backend(models.TextChoices):
         MOCK = "mock", "Mock"
         BEDROCK = "bedrock", "Bedrock"
+        STRANDS = "strands", "Bedrock via Strands"  # the simulator's agent host
 
     prompt_name = models.CharField(max_length=100)
     prompt_version = models.CharField(max_length=50)

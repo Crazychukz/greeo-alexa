@@ -11,7 +11,7 @@ from typing import Any, TypeVar
 from django.conf import settings
 from pydantic import BaseModel, ValidationError
 
-from .backends import BackendResponse, BedrockLLM, LLMBackend, MockLLM, ToolTurn
+from .backends import BackendResponse, BedrockLLM, LLMBackend, MockLLM, ToolTurn, without_reasoning
 from .budget import BudgetGuard, RedisBudgetGuard
 from .exceptions import LLMError, LLMOutputError
 from .models import LLMCall
@@ -102,6 +102,46 @@ class LLMGateway:
         )
         return turn
 
+    # Agent runs (the Strands host) ----------------------------------------------------
+    # An agent framework makes its own model calls, so it cannot go through generate_*.
+    # It still may not bypass the gateway: each run reserves budget here first, and
+    # settles with the framework's own token counts in one audit record.
+
+    def reserve_agent_run(
+        self, prompt_name: str, messages: list[dict[str, Any]], max_calls: int
+    ) -> int:
+        """Reserve for a whole agent run: the prompt, and the most it may generate."""
+        definition = load_prompt(prompt_name)
+        sized = definition.text + json.dumps(messages, default=str)
+        return self.budget.reserve("simulator", sized, settings.LLM_MAX_TOKENS * max_calls)
+
+    def settle_agent_run(
+        self,
+        reservation: int,
+        *,
+        prompt_name: str,
+        model_id: str,
+        backend_name: str,
+        tokens_in: int,
+        tokens_out: int,
+        latency_ms: int,
+        ok: bool,
+        error: str = "",
+    ) -> None:
+        """Settle the reservation with observed usage and write one audit record."""
+        self.budget.settle(reservation, tokens_in + tokens_out)
+        self._record_call(
+            definition=load_prompt(prompt_name),
+            model_id=model_id,
+            variables={},
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            latency_ms=latency_ms,
+            ok=ok,
+            error=error,
+            backend_name=backend_name,
+        )
+
     def _call(
         self,
         definition: PromptDefinition,
@@ -111,13 +151,14 @@ class LLMGateway:
         """Reserve budget, invoke the provider once, and write one audit record."""
         model_id = model_for_prompt(definition.name)
         run_id = str(variables.get("pipeline_run_id", "global"))
-        reservation = self.budget.reserve(run_id, rendered_prompt, settings.LLM_MAX_TOKENS)
+        max_tokens = max_tokens_for_prompt(definition.name)
+        reservation = self.budget.reserve(run_id, rendered_prompt, max_tokens)
         started = time.monotonic()
         try:
             response = self.backend.generate(
                 prompt=rendered_prompt,
                 model_id=model_id,
-                max_tokens=settings.LLM_MAX_TOKENS,
+                max_tokens=max_tokens,
                 temperature=temperature_for_prompt(definition.name),
             )
         except Exception as error:
@@ -158,8 +199,10 @@ class LLMGateway:
         latency_ms: int,
         ok: bool,
         error: str,
+        backend_name: str | None = None,
     ) -> None:
         """Persist metadata, never the input evidence or generated content itself."""
+        backend = backend_name or self.backend.name
         story = None
         story_id = variables.get("story_id")
         if story_id:
@@ -169,8 +212,8 @@ class LLMGateway:
         LLMCall.objects.create(
             prompt_name=definition.name,
             prompt_version=definition.version,
-            model=model_id if self.backend.name != "mock" else MockLLM.model_id,
-            backend=self.backend.name,
+            model=model_id if backend != "mock" else MockLLM.model_id,
+            backend=backend,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
             latency_ms=latency_ms,
@@ -205,6 +248,22 @@ def temperature_for_prompt(prompt_name: str) -> float:
     """LLM_<PROMPT_NAME>_TEMPERATURE overrides the default for one prompt."""
     key = f"LLM_{prompt_name.upper()}_TEMPERATURE"
     return float(os.environ.get(key, DEFAULT_TEMPERATURES.get(prompt_name, 0.0)))
+
+
+# Facts lists and whole tales need room; the default suits short structured replies.
+DEFAULT_MAX_TOKENS = {
+    "establish_facts": 4500,
+    "write_telling": 3000,
+    "rerank_proverb": 1500,
+    "check_telling": 1500,
+}
+
+
+def max_tokens_for_prompt(prompt_name: str) -> int:
+    """LLM_<PROMPT_NAME>_MAX_TOKENS overrides the default for one prompt."""
+    key = f"LLM_{prompt_name.upper()}_MAX_TOKENS"
+    fallback = DEFAULT_MAX_TOKENS.get(prompt_name, settings.LLM_MAX_TOKENS)
+    return int(os.environ.get(key, fallback))
 
 
 def model_for_prompt(prompt_name: str) -> str:
@@ -246,9 +305,16 @@ def validate_output[OutputModel: BaseModel](
 ) -> OutputModel | None:
     """Return a parsed Pydantic instance or None so the caller can repair once."""
     try:
-        return output_model.model_validate_json(text)
+        return output_model.model_validate_json(json_object(text))
     except (ValidationError, ValueError):
         return None
+
+
+def json_object(text: str) -> str:
+    """The JSON object in a reply: inline reasoning, code fences and chatter are dropped."""
+    cleaned = without_reasoning(text)
+    start, end = cleaned.find("{"), cleaned.rfind("}")
+    return cleaned[start : end + 1] if 0 <= start < end else cleaned
 
 
 def estimate_cost(tokens_in: int, tokens_out: int) -> Decimal:

@@ -1,0 +1,179 @@
+<!-- Laid out after the Echo Show's own conversation screen (docs/design/listen-reference.webp):
+     Greeo's words and the cards on the left, Mbe on the right, a light bar along the bottom. -->
+<div
+  class="listen"
+  [attr.data-state]="conversation.mbeState()"
+  [class.hearing]="microphone.listening()"
+>
+  <section class="talk" aria-live="polite">
+    <!-- What Greeo says, large, like the reference's opening question. -->
+    <h1 class="said">{{ heading() }}</h1>
+
+    @if (conversation.display(); as display) {
+      @if (display.resource_uri) {
+        <!-- Greeo's own MCP Apps card, from the MCP server, hosted here as Alexa+ would. -->
+        <greeo-card-host
+          class="card"
+          [display]="display"
+          [spoken]="conversation.spoken()"
+          (chip)="conversation.say($event)"
+        />
+      }
+    }
+
+    @if (!conversation.display()?.resource_uri) {
+      @if (stories().length) {
+        <ul class="tiles" aria-label="Stories">
+          @for (story of stories(); track story.story_id) {
+            <li>
+              <button type="button" class="tile" (click)="conversation.say(story.title)">
+                <span class="tile-title">{{ story.title }}</span>
+                <span class="tile-sub">{{ story.region }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+      @if (options().length && !conversation.busy()) {
+        <div class="tiles options" role="group" aria-label="You can ask for">
+          @for (option of options(); track option) {
+            <button type="button" class="tile" (click)="conversation.say(option)">
+              <span class="tile-title">{{ option }}</span>
+            </button>
+          }
+        </div>
+      }
+    }
+  </section>
+
+  <!-- Mbe in the reference's heart spot, with what he is doing and the controls beneath him. -->
+  <aside class="mbe-spot">
+    <greeo-mbe [state]="conversation.mbeState()" />
+    <p class="status">{{ status() }}</p>
+    <!-- The controls, under Mbe and his status. -->
+    <div class="actions" role="toolbar" aria-label="Conversation">
+      @if (conversation.isTelling()) {
+        <button type="button" class="round" aria-label="Pause the tale" (click)="conversation.pause()">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14" /></svg>
+        </button>
+      }
+      <button
+        type="button"
+        class="round"
+        [attr.aria-label]="speech.enabled() ? 'Turn voice off' : 'Turn voice on'"
+        [attr.aria-pressed]="speech.enabled()"
+        (click)="speech.setEnabled(!speech.enabled())"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
+          @if (speech.enabled()) {
+            <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+          } @else {
+            <path d="M16 9.5l5 5M21 9.5l-5 5" />
+          }
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="round"
+        aria-label="History"
+        [attr.aria-expanded]="historyOpen()"
+        (click)="historyOpen.set(!historyOpen())"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5M12 8v4.5l3 2" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="round"
+        aria-label="Type instead"
+        [attr.aria-expanded]="typing()"
+        (click)="typing.set(!typing())"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="6" width="18" height="12" rx="2" />
+          <path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="round mic"
+        [class.on]="microphone.listening()"
+        [attr.aria-label]="microphone.listening() ? 'Stop listening' : 'Speak to Greeo'"
+        (click)="toggleMic()"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="9" y="3" width="6" height="11" rx="3" />
+          <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+        </svg>
+      </button>
+    </div>
+  </aside>
+
+  @if (typing()) {
+    <div class="typing">
+      <greeo-ask-bar />
+    </div>
+  }
+
+  @if (historyOpen()) {
+    <section class="history" aria-label="History">
+      <header>
+        <h2>History</h2>
+        <button type="button" class="text-button" (click)="startOver()">Start over</button>
+      </header>
+      <!-- Simulated account linking: memory tools (save, saved stories) need a listener. -->
+      <div class="account">
+        @if (listener.isGuest()) {
+          <span>Listening as a guest</span>
+          <button type="button" class="text-button" (click)="linkAccount()">
+            Link account
+          </button>
+        } @else {
+          <span>Account linked (simulated)</span>
+          <button type="button" class="text-button" (click)="unlinkAccount()">Unlink</button>
+        }
+      </div>
+      @if (recent().length) {
+        <ol class="recent">
+          @for (exchange of recent(); track $index) {
+            <li>{{ exchange.said }}</li>
+          }
+        </ol>
+      } @else {
+        <p class="quiet">Nothing asked yet.</p>
+      }
+
+      <!-- For judges and developers: what the host did to answer, honestly labelled. -->
+      @if (conversation.lastReply(); as reply) {
+        <h3>
+          How Greeo answered ·
+          {{
+            reply.host_mode === 'llm'
+              ? 'a model chose the tools'
+              : reply.host_mode === 'strands'
+                ? 'a Strands agent chose the tools'
+                : reply.host_mode === 'tap'
+                ? 'the listener tapped a story'
+                : reply.host_mode === 'auto'
+                ? 'Greeo carried on with the tale'
+                : 'a scripted router chose the tools'
+          }}
+        </h3>
+        <ol class="trace">
+          @for (step of reply.tool_trace; track $index) {
+            <li [class.failed]="!step.ok">
+              <code>{{ step.tool }}</code> {{ step.ms }} ms {{ step.ok ? '' : '(friendly error)' }}
+            </li>
+          } @empty {
+            <li>No tool was needed.</li>
+          }
+        </ol>
+      }
+    </section>
+  }
+
+  <!-- The light bar: Alexa's blue line, here showing listening, thinking and telling. -->
+  <div class="light-bar" aria-hidden="true"></div>
+</div>

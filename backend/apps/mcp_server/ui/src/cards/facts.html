@@ -1,8 +1,8 @@
 <style>
 .facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; counter-reset: fact; }
-.facts li { counter-increment: fact; padding-left: 58px; position: relative; }
-.facts li::before { content: counter(fact); position: absolute; left: 14px; top: 14px; width: 30px; height: 30px; border-radius: 50%; background: var(--fire); color: var(--on-fire); font-weight: 700; display: flex; align-items: center; justify-content: center; }
-.facts p { font-size: 1.1rem; }
+.facts li { counter-increment: fact; padding-left: 48px; position: relative; }
+.facts li::before { content: counter(fact); position: absolute; left: 12px; top: 12px; width: 24px; height: 24px; border-radius: 50%; background: var(--fire); color: var(--on-fire); font: 700 12px/1 var(--sans); display: flex; align-items: center; justify-content: center; }
+.facts p { font-size: 15px; }
 </style>
 <script>
 /* The facts: what actually happened, each with who reported it and when. */

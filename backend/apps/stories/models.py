@@ -28,6 +28,9 @@ class Story(models.Model):
     id = models.CharField(primary_key=True, max_length=15, default=story_id, editable=False)
     cluster_key = models.CharField(max_length=64, unique=True, null=True, blank=True)
     is_synthetic = models.BooleanField(default=False)
+    # A demo story (such as a friction-log tale) is told on request but is not news, so
+    # it never appears among today's stories.
+    is_demo = models.BooleanField(default=False)
     handle = models.CharField(max_length=120)
     tone_class = models.CharField(
         max_length=12, choices=ToneClass.choices, default=ToneClass.NEUTRAL

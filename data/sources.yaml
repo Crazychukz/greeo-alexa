@@ -1,0 +1,77 @@
+# Greeo's news sources. Owner decision 2026-10-05: free-to-read publishers only (no
+# paywalls), every story credits its publisher by name, and Greeo stores only the
+# headline, link, date and a snippet of at most 300 characters (AGENTS.md rule 5).
+# Full article text is read in memory to establish facts and never stored or spoken.
+# Feed and article access checked live on 2026-10-05; robots.txt is obeyed on every read.
+#
+# Not used:
+#   CNN: its RSS feeds stopped updating in 2023.
+#   NPR: robots.txt does not allow GreeoBot to read articles.
+
+sources:
+  - name: BBC News Africa
+    feed_url: https://feeds.bbci.co.uk/news/world/africa/rss.xml
+    region: Africa
+    language: en
+    terms_url: https://www.bbc.co.uk/news/10628494
+    terms_reviewed_at: 2026-10-05T00:00:00Z
+    use_policy: headline_snippet_only
+    attribution_text: BBC News
+    active: true
+    min_interval_minutes: 30
+
+  - name: Al Jazeera
+    feed_url: https://www.aljazeera.com/xml/rss/all.xml
+    region: World
+    language: en
+    terms_url: https://www.aljazeera.com/terms-and-conditions
+    terms_reviewed_at: 2026-10-05T00:00:00Z
+    use_policy: headline_snippet_only
+    attribution_text: Al Jazeera
+    active: true
+    min_interval_minutes: 30
+
+  - name: The Guardian Africa
+    feed_url: https://www.theguardian.com/world/africa/rss
+    region: Africa
+    language: en
+    terms_url: https://www.theguardian.com/help/terms-of-service
+    terms_reviewed_at: 2026-10-05T00:00:00Z
+    use_policy: headline_snippet_only
+    attribution_text: The Guardian
+    active: true
+    min_interval_minutes: 30
+
+  - name: DW Africa
+    feed_url: https://rss.dw.com/rdf/rss-en-africa
+    region: Africa
+    language: en
+    terms_url: https://www.dw.com/en/legal-notice/a-15954041
+    terms_reviewed_at: 2026-10-05T00:00:00Z
+    use_policy: headline_snippet_only
+    attribution_text: DW
+    active: true
+    min_interval_minutes: 60
+
+  # Off until the owner confirms each publisher's terms page (not found automatically).
+  - name: Africanews
+    feed_url: https://www.africanews.com/feed/rss
+    region: Africa
+    language: en
+    terms_url: https://www.africanews.com/
+    terms_reviewed_at: 2026-10-05T00:00:00Z
+    use_policy: headline_snippet_only
+    attribution_text: Africanews
+    active: false
+    min_interval_minutes: 30
+
+  - name: France 24 Africa
+    feed_url: https://www.france24.com/en/africa/rss
+    region: Africa
+    language: en
+    terms_url: https://www.france24.com/en/
+    terms_reviewed_at: 2026-10-05T00:00:00Z
+    use_policy: headline_snippet_only
+    attribution_text: France 24
+    active: false
+    min_interval_minutes: 60

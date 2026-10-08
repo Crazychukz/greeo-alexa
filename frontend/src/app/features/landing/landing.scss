@@ -1,0 +1,355 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.home {
+  height: 100%;
+  padding-bottom: 20px;
+}
+.mbe-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.speech {
+  position: relative;
+  margin: 6px 0 0;
+  padding: 10px 16px 11px;
+  border-radius: 18px;
+  background: var(--ink);
+  color: #1b1a17;
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px -8px rgb(0 0 0 / 0.6);
+  transform-origin: 0% 60%;
+  animation: speak-in 380ms cubic-bezier(0.2, 0.9, 0.3, 1.25) 620ms both;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 22px;
+    width: 14px;
+    height: 14px;
+    background: inherit;
+    border-radius: 3px;
+    transform: rotate(45deg);
+  }
+}
+
+@keyframes speak-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6) translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.mvp-welcome {
+  font-weight: 400;
+  font-size: 30px;
+}
+
+// Waking up: once the screen has lit (app.scss), the home fills in from left to right in
+// a short stagger, done within about a second. Nothing waits for Mbe's own entrance.
+.mbe-wrapper,
+.mvp-welcome,
+.mvp-intro greeo-ask-bar,
+.mvp-card {
+  animation: wake-in 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.mbe-wrapper {
+  animation-delay: 120ms;
+}
+
+.mvp-welcome {
+  animation-delay: 220ms;
+}
+
+.mvp-intro greeo-ask-bar {
+  animation-delay: 320ms;
+}
+
+.mvp-card.panel {
+  animation-delay: 260ms;
+}
+
+.mvp-card.family {
+  animation-delay: 360ms;
+}
+
+@keyframes wake-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speech,
+  .mbe-wrapper,
+  .mvp-welcome,
+  .mvp-intro greeo-ask-bar,
+  .mvp-card {
+    animation: none;
+  }
+}
+
+.mvp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr;
+  grid-column-gap: 15px;
+  height: 100%;
+}
+
+// The two cards: colours taken from the reference dashboard ---------------------------
+
+.mvp-card {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  border-radius: 22px;
+  overflow: hidden;
+  color: #fff;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+// Demo stories: a frosted slate panel holding a grid of tiles.
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 12px 12px;
+  background: linear-gradient(180deg, rgb(74 84 98 / 0.62) 0%, rgb(58 70 86 / 0.38) 100%);
+  border: 1px solid rgb(255 255 255 / 0.06);
+  // No backdrop-filter: inside the tilted (3D-transformed) screen Chrome draws stray
+  // seam lines around blurred elements. The translucent fill reads as frosted anyway.
+}
+
+.tiles {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1.15fr repeat(3, 1fr);
+  gap: 8px;
+}
+
+.tile {
+  position: relative;
+  // Tiles are buttons: tapping one tells its story.
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: rgb(98 106 117 / 0.55); // the reference's grey tile
+  overflow: hidden;
+
+  h3 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.2;
+    // Story titles vary in length: two lines at most, then an ellipsis.
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: rgb(255 255 255 / 0.78);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.tile:hover {
+  filter: brightness(1.12);
+}
+
+.tile:focus-visible {
+  outline: 3px solid var(--fire);
+  outline-offset: 2px;
+}
+
+.panel-note {
+  margin: auto 0;
+  color: rgb(255 255 255 / 0.7);
+  font-size: 13px;
+  text-align: center;
+}
+
+.tile-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: #d9dde2;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.more {
+  font-size: 16px;
+  line-height: 1;
+  color: #e9edf1;
+}
+
+// Featured story: spans the top row, like the reference's camera tile.
+.hero {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  padding: 10px 12px;
+
+  h3 {
+    font-size: 14px;
+    text-shadow: 0 1px 6px rgb(0 0 0 / 0.5);
+  }
+}
+
+// Stands in for a photo: a dusky landscape with a warm horizon.
+.hero-art {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 40%, rgb(0 0 0 / 0.45) 100%),
+    radial-gradient(60% 50% at 70% 85%, rgb(255 196 120 / 0.45), transparent 70%),
+    linear-gradient(180deg, #6f8fa3 0%, #8aa7a0 45%, #5e7a52 70%, #3f5a38 100%);
+}
+
+.tile-text {
+  position: relative;
+}
+
+// The active tile (the story being told): the reference's bright blue.
+.tile.active {
+  background: linear-gradient(180deg, #2f97e6 0%, #1f83d4 100%);
+
+  p {
+    color: #fff;
+  }
+  .icon {
+    stroke: #fff;
+  }
+}
+
+// The stat tile: the reference's teal, with a big number.
+.tile.stat {
+  background: linear-gradient(180deg, #2fb6c1 0%, #1fa3b0 100%);
+
+  p {
+    color: #fff;
+  }
+}
+
+.tile p.stat-value {
+  margin: 0;
+  overflow: visible;
+  font-size: clamp(18px, 2.4vw, 30px); // smaller on a small screen, so it is never cut off
+  font-weight: 400;
+  line-height: 1;
+  color: #fff;
+}
+
+// A status tile: the reference's green outline icon.
+.checked .icon {
+  stroke: #2fd17a;
+}
+
+// The photo card (Lagos, Nigeria): white captions over a darkened top and bottom.
+.family {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px 16px 16px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  // Photo: Fahd Aminu on Unsplash (Unsplash License), resized to public/lagos.jpg.
+  --family-photo: url('/lagos.jpg');
+  background:
+    linear-gradient(
+      180deg,
+      rgb(0 0 0 / 0.25) 0%,
+      transparent 25%,
+      transparent 55%,
+      rgb(0 0 0 / 0.55) 100%
+    ),
+    var(--family-photo, radial-gradient(70% 55% at 45% 45%, #e8d2b8 0%, #b98f6e 45%, #5a4a44 100%));
+  background-size: cover;
+  background-position: center;
+}
+
+.family-caption p {
+  margin: 0;
+}
+
+.family-headline {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.family-sub {
+  font-size: 14px;
+  color: rgb(255 255 255 / 0.85);
+}
+
+.glow {
+  width: clamp(48px, 11cqi, 96px);
+  aspect-ratio: 1;
+  margin-top: 10%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--fire) 0%, var(--ember) 45%, transparent 70%);
+  filter: blur(2px);
+  animation: breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 767px) {
+}
+
+// Mbe on the home screen: half his default size (160px).
+greeo-mbe {
+  width: 80px;
+}

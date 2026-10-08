@@ -45,6 +45,15 @@ Request:
 
 `text` is 1–500 characters: speech-to-text output, typed input, or a chip's label.
 
+Optional `story_id` (for example `"st_c07675295ace"`): the listener tapped that story on
+screen. It is told straight away (`tell_tale`, no model involved), `host_mode` is `"tap"`,
+and `text` is only what the transcript shows them saying. A malformed id is a `400`.
+
+Optional `follow_up` (`"next_beat"` or `"closing"`, with `story_id`): Greeo carrying on
+with its own tale, the next part or the closing thought. It is answered directly
+(`tell_tale` or `get_moral`, no model), so a tale never stalls on a model's reading of
+"continue"; `host_mode` is `"auto"`. Without `story_id` it is a `400`.
+
 Response `200`, always for any conversational outcome, including "I couldn't find that":
 
 ```json
@@ -100,7 +109,7 @@ Response `200`, always for any conversational outcome, including "I couldn't fin
 | `display.structured` | The tool's data. Shapes below. | Pass to the card; use `next_options` for chips. |
 | `display.is_error` | The tool answered with a friendly problem. | Show `spoken` calmly; no card. |
 | `tool_trace` | Every MCP tool call this turn, in order, with time and outcome. | Show it in the developer panel. |
-| `host_mode` | `"mock"` (keyword router) or `"llm"` (a model chose the tools). | Show it in the developer panel; label it honestly. |
+| `host_mode` | Who chose the tools: `"mock"` (keyword router), `"llm"` (a model, through our own loop), `"strands"` (a Strands Agents agent), `"tap"` (the listener tapped a story) or `"auto"` (Greeo carried on with its own tale). Set by `SIMULATOR_HOST`. | Show it in the developer panel; label it honestly. |
 
 When `resource_uri` is `null` but the result succeeded (for example `get_briefing`,
 `search_events`, `save_for_later`, `get_saved_stories`, `set_preferences`), render a
@@ -141,6 +150,25 @@ Response `400` for invalid input only (field-by-field, not speakable):
 
 Response `200`: `{ "reset": true }`. Clears the session and the listener's short-term
 context. Saves and progress are kept. Saying "start over" through `/turn` does the same.
+
+### `GET /stories`: the home screen's Demo stories card
+
+Response `200`:
+
+```json
+{
+  "demo": [
+    { "story_id": "st_7ea030589a4a", "title": "Polly Neural Voices Missing in Region",
+      "region": "Behind the scenes", "tones": ["balanced", "light"] }
+  ],
+  "news_count": 19
+}
+```
+
+`demo` is up to 12 demo stories, newest first: the friction log retold as tales
+(`manage.py tell_friction_log`). They are told on request but never listed as today's
+news. `news_count` is how many news stories were published in the last 48 hours. Tell a
+demo story by sending its `story_id` with `/turn`.
 
 ### `GET /resource?uri=ui://greeo/<card>`: fetch a card's HTML
 
@@ -193,9 +221,16 @@ interface ProverbDetail {
   verification_status: 'verified' | 'single_source';
 }
 
-// search_events, get_briefing  (no card)
+// search_events, get_briefing, get_demo_stories  (no card)
+// get_demo_stories lists the behind-the-scenes tales; get_briefing never includes them.
 interface StoryList extends Envelope {
   stories: { story_id: string; title: string; region: string }[]; page: number; has_more: boolean;
+}
+// get_help  (no card): "what can you do?", starting from where the listener is
+interface HelpResult extends Envelope {
+  abilities: string[];
+  current_story_id: string | null;   // a tale they can continue, if any
+  current_title: string | null;
 }
 // tell_tale  -> ui://greeo/tale
 interface TaleBeat extends StoryEnvelope {
@@ -357,6 +392,6 @@ All spoken text is already safe to read aloud: no URLs, identifiers or technical
 ## Honesty labels for the demo
 
 - Show that this is a simulator, for example "Greeo simulator — stand-in for an Alexa+ device".
-- Show `host_mode`: `mock` means a keyword router chose the tools, not a model.
+- Show `host_mode`: `mock` means a keyword router chose the tools, not a model; `strands` and `llm` mean a model did; `tap` means the listener chose.
 - The simulator speaks tale text word for word. Real Alexa+ composes its own reply from the tool data and may reword it; the card shows the exact text.
 - Do not use Amazon logos, product images or the Echo light-ring design.

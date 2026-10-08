@@ -59,8 +59,9 @@ def used_slots(draft: TellingDraft, offered: Mapping[str, str]) -> tuple[dict[st
 def split_tale(tale: str, spoken_by_slot: Mapping[str, str]) -> tuple[list[str], list[str]]:
     """3-5 beats of at most 75 spoken words, split only between sentences.
 
-    Beats are balanced toward equal length so no beat is a stub. Problems are reported
-    rather than repaired: a sentence over the limit is never cut mid-thought.
+    The number of beats follows the tale's length, and the sentences are divided so the
+    longest beat is as short as possible. Problems are reported rather than repaired: a
+    sentence over the limit is never cut mid-thought.
     """
     sentences = [s.strip() for s in SENTENCE_BREAK.split(tale.strip()) if s.strip()]
     sizes = [spoken_words(s, spoken_by_slot) for s in sentences]
@@ -69,30 +70,46 @@ def split_tale(tale: str, spoken_by_slot: Mapping[str, str]) -> tuple[list[str],
         for s, size in zip(sentences, sizes, strict=True)
         if size > MAX_BEAT_WORDS
     ]
-    total = sum(sizes)
-    count = min(max(math.ceil(total / TARGET_BEAT_WORDS), MIN_BEATS), MAX_BEATS)
-    count = min(count, len(sentences))
-
-    beats: list[list[str]] = [[]]
-    for index, (sentence, size) in enumerate(zip(sentences, sizes, strict=True)):
-        remaining_words = sum(sizes[index:])
-        beats_left = count - len(beats)
-        current = sum(spoken_words(s, spoken_by_slot) for s in beats[-1])
-        fair_share = (remaining_words + current) / (beats_left + 1)
-        start_new = (
-            beats[-1]
-            and beats_left > 0
-            and (current + size > MAX_BEAT_WORDS or current >= fair_share)
+    if len(sentences) < MIN_BEATS:
+        problems.append(
+            f"the tale has only {len(sentences)} sentences; it needs at least {MIN_BEATS}."
         )
-        if start_new:
-            beats.append([])
-        beats[-1].append(sentence)
+        return [" ".join(sentences)] if sentences else [], problems
 
-    texts = [" ".join(beat) for beat in beats]
+    wanted = math.ceil(sum(sizes) / TARGET_BEAT_WORDS)
+    count = min(max(wanted, MIN_BEATS), MAX_BEATS, len(sentences))
+    groups = balanced_groups(sizes, count)
+    texts = [" ".join(sentences[start:end]) for start, end in groups]
     for number, text in enumerate(texts, start=1):
         words = spoken_words(text, spoken_by_slot)
         if words > MAX_BEAT_WORDS:
             problems.append(f"beat {number} has {words} words; the tale is too long for 5 beats.")
-    if len(texts) < MIN_BEATS:
-        problems.append(f"the tale has only {len(texts)} sentences; it needs at least 3 beats.")
     return texts, problems
+
+
+def balanced_groups(sizes: list[int], count: int) -> list[tuple[int, int]]:
+    """Split sizes into `count` contiguous runs minimising the largest run's total.
+
+    A small dynamic programme: best[k][i] is the smallest possible largest run when the
+    first i items are split into k runs. Tales have a few dozen sentences at most.
+    """
+    prefix = [0]
+    for size in sizes:
+        prefix.append(prefix[-1] + size)
+    n = len(sizes)
+    infinity = float("inf")
+    best = [[infinity] * (n + 1) for _ in range(count + 1)]
+    cut = [[0] * (n + 1) for _ in range(count + 1)]
+    best[0][0] = 0
+    for k in range(1, count + 1):
+        for i in range(k, n + 1):
+            for j in range(k - 1, i):
+                largest = max(best[k - 1][j], prefix[i] - prefix[j])
+                if largest < best[k][i]:
+                    best[k][i], cut[k][i] = largest, j
+    groups, end = [], n
+    for k in range(count, 0, -1):
+        start = cut[k][end]
+        groups.append((start, end))
+        end = start
+    return groups[::-1]

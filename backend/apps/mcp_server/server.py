@@ -49,8 +49,9 @@ INSTRUCTIONS = (
     "any time and later continue the tale; never require the layers in order. When asked "
     "what Greeo can do: it finds today's stories or stories on a topic, tells them as tales "
     "in a light, balanced or serious tone, explains the proverbs, gives the facts, "
-    "background, perspectives and sources, and remembers saved stories and where the "
-    "listener stopped."
+    "background, perspectives and sources, remembers saved stories and where the "
+    "listener stopped, and tells behind-the-scenes tales about how it was built. For that "
+    "question, call get_help: its answer fits where the listener is."
 )
 
 StoryId = Annotated[
@@ -230,6 +231,16 @@ async def tell_tale(
     return await run_handler(handlers.tell_tale, ctx, story_id=story_id, beat=beat, tone=tone)
 
 
+async def get_demo_stories(
+    ctx: Context, page: Page = 1
+) -> Annotated[CallToolResult, schemas.StoryList]:
+    return await run_handler(handlers.get_demo_stories, ctx, page=page)
+
+
+async def get_help(ctx: Context) -> Annotated[CallToolResult, schemas.HelpResult]:
+    return await run_handler(handlers.get_help, ctx)
+
+
 async def get_moral(
     ctx: Context, story_id: StoryId = None
 ) -> Annotated[CallToolResult, schemas.ClosingThought]:
@@ -333,6 +344,22 @@ TOOLS: list[tuple[Callable[..., Any], str, str, ToolAnnotations]] = [
         "Call when the listener asks what's new, for today's stories or a briefing, without "
         "naming a topic. Returns up to five recent stories with their story_id, in the "
         "listener's preferred region when they have one. Do not use to search a topic.",
+        READ_ONLY,
+    ),
+    (
+        get_demo_stories,
+        "Behind the scenes",
+        "Call when the listener asks for the demo stories, behind-the-scenes stories, or how "
+        "Greeo was built. Returns up to five tales about building Greeo, each with a story_id "
+        "for tell_tale. They are not news and never appear among today's stories.",
+        READ_ONLY,
+    ),
+    (
+        get_help,
+        "What Greeo can do",
+        "Call when the listener asks what Greeo can do, for help, or how to use it. Returns a "
+        "short summary that starts from where they are (for example a tale they can "
+        "continue) and suggestions to try. Do not use to find or tell a story.",
         READ_ONLY,
     ),
     (

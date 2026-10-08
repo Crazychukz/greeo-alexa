@@ -42,6 +42,7 @@ services:
     volumes:
       - ./backend:/app/backend
       - ./data:/app/data:ro
+      - ./docs:/app/docs:ro  # the friction log, for tell_friction_log
       - ./scripts:/app/scripts:ro
     depends_on:
       postgres:

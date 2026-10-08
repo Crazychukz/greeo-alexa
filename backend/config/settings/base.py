@@ -140,8 +140,15 @@ CELERY_BEAT_SCHEDULE: dict[str, dict[str, object]] = {
     "news-poll-due-feeds": {
         "task": "news.poll_due_feeds",
         "schedule": crontab(minute="*/30"),
-    }
+    },
+    # Ten minutes after each poll, so new articles have arrived.
+    "stories-run-pipeline": {
+        "task": "stories.run_pipeline",
+        "schedule": crontab(minute="10,40"),
+    },
 }
+# Stories the pipeline tries to publish per scheduled run (each costs several model calls).
+PIPELINE_STORIES_PER_RUN = env_int("PIPELINE_STORIES_PER_RUN", 2)
 # Synthetic fixtures stay hidden unless an environment opts in; dev.py enables them.
 ALLOW_SYNTHETIC = env_bool("ALLOW_SYNTHETIC", False)
 # Demo-only: also serve single-source proverbs. Off by default; the submission must
@@ -182,6 +189,9 @@ INCLUDE_SOURCE_URLS = env_bool("INCLUDE_SOURCE_URLS", False)
 # Simulator host API: our stand-in for Alexa+. It reaches Greeo only through MCP.
 SIMULATOR_MCP_URL = env("SIMULATOR_MCP_URL", "http://127.0.0.1:8001/mcp")
 SIMULATOR_MAX_TOOL_ITERATIONS = env_int("SIMULATOR_MAX_TOOL_ITERATIONS", 4)
+# Who chooses the tools: mock (keyword router), llm (our own loop) or strands (a Strands
+# Agents agent). Empty: mock when LLM_BACKEND is mock, otherwise llm.
+SIMULATOR_HOST = env("SIMULATOR_HOST", "")
 SIMULATOR_SESSION_SECONDS = env_int("SIMULATOR_SESSION_SECONDS", 1800)
 # Browser origins allowed to call the simulator API (the separate front end).
 CORS_ALLOWED_ORIGINS = [
@@ -203,6 +213,8 @@ REST_FRAMEWORK = {
 SPEECH_BACKEND = env("SPEECH_BACKEND", "mock")
 POLLY_VOICE_ID = env("POLLY_VOICE_ID", "Ayanda")
 POLLY_ENGINE = env("POLLY_ENGINE", "neural")
+# Polly's own region: neural voices are not offered everywhere Bedrock is (eu-north-1).
+POLLY_REGION = env("POLLY_REGION", "") or env("AWS_REGION", "us-east-1")
 SPEECH_RETRIES = env_int("SPEECH_RETRIES", 2)
 SPEECH_CACHE_SECONDS = env_int("SPEECH_CACHE_SECONDS", 86400)
 

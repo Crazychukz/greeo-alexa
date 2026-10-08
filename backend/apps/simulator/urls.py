@@ -9,4 +9,5 @@ urlpatterns = [
     path("reset", views.reset, name="simulator-reset"),
     path("resource", views.resource, name="simulator-resource"),
     path("tts", views.tts, name="simulator-tts"),
+    path("stories", views.stories, name="simulator-stories"),
 ]

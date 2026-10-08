@@ -1,0 +1,89 @@
+<div class="home">
+  <div class="mvp-grid">
+    <div class="mvp-intro">
+      <div class="mbe-wrapper">
+        <greeo-mbe
+          state="speaking"
+          enterFrom="standing"
+          [speed]="0.65"
+        />
+        <!-- Mbe's speech bubble: part of the screen's power-on, not timed to Mbe. -->
+        <p class="speech">{{ greeting() }},<br />I'm Greeo.</p>
+      </div>
+
+      <h1 class="mvp-welcome">
+        Sit with me a while.<br />
+        The day has brought us stories.
+      </h1>
+
+      <!-- Talk from home: sending opens the conversation on /listen. -->
+      <greeo-ask-bar [opensConversation]="true" placeholder="Ask for today's stories" />
+    </div>
+    <!-- Demo stories: a panel of preloaded stories, laid out like a home dashboard. -->
+    <section class="mvp-card panel" aria-labelledby="demo-stories-title">
+      <h2 id="demo-stories-title" class="panel-title">Demo stories</h2>
+
+      @if (shelf() === undefined) {
+        <p class="panel-note">Gathering the stories…</p>
+      } @else if (!featured()) {
+        <p class="panel-note">The demo stories will appear here.</p>
+      } @else {
+        <div class="tiles">
+          @if (featured(); as story) {
+            <button
+              type="button"
+              class="tile hero"
+              (click)="tell(story)"
+            >
+              <div class="hero-art" aria-hidden="true"></div>
+              <div class="tile-text">
+                <h3>{{ story.title }}</h3>
+                <p>Featured · {{ story.region }}</p>
+              </div>
+            </button>
+          }
+
+          @for (story of stories(); track story.story_id) {
+            <button
+              type="button"
+              class="tile"
+              (click)="tell(story)"
+            >
+              <div class="tile-text">
+                <h3>{{ story.title }}</h3>
+                <p>{{ story.region }}</p>
+              </div>
+              <div class="tile-foot">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M5 4.5h8.5A3.5 3.5 0 0 1 17 8v11.5H8.5A3.5 3.5 0 0 1 5 16z M17 8h2v11.5h-2"
+                  />
+                </svg>
+                <span class="more" aria-hidden="true">⋮</span>
+              </div>
+            </button>
+          }
+
+          <button type="button" class="tile stat" (click)="hearToday()">
+            <div class="tile-text">
+              <h3>Today's stories</h3>
+              <p>Ready to tell</p>
+            </div>
+            <p class="stat-value">{{ shelf()?.news_count ?? 0 }}</p>
+          </button>
+        </div>
+      }
+    </section>
+
+    <!-- A photo card: Lagos, Nigeria. Photo by Fahd Aminu on Unsplash. -->
+    <section class="mvp-card family" aria-labelledby="family-title">
+      <h2 id="family-title" class="panel-title">Lagos, Nigeria</h2>
+      <div class="family-caption">
+        <p class="family-headline">Story time together</p>
+        <p class="family-sub">
+          Photo: Fahd Aminu on Unsplash
+        </p>
+      </div>
+    </section>
+  </div>
+</div>

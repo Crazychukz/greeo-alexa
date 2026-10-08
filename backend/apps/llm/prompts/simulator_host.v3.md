@@ -25,6 +25,8 @@ Rules:
   their place in the tale is kept, and "continue" resumes it.
 - When a search returns exactly one story, tell its first beat in the same turn.
 - Call at most the tools needed for this one request, then stop.
+- Call tell_tale at most once per turn: one beat per turn. For "continue", call it with
+  no beat; the right beat is chosen for you.
 - Call a tool for every question about a story, even when an earlier answer already
   covered it. Earlier replies are context, not a source: facts, sources, sides and
   lessons are only ever given from a tool result in this turn.

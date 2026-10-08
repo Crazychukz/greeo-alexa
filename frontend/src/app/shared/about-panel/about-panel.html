@@ -1,0 +1,68 @@
+<div class="scrim" (click)="closed.emit()" aria-hidden="true"></div>
+
+<section class="panel" role="dialog" aria-modal="true" aria-labelledby="about-title">
+  <header class="panel-head">
+    <div>
+      <h2 id="about-title">About Greeo</h2>
+      <p class="tagline">The news, retold as tales by the fire.</p>
+    </div>
+    <button #close type="button" class="round" aria-label="Close" (click)="closed.emit()">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+    </button>
+  </header>
+
+  <!-- The three pages, as pill switches: the open one is blue with its knob on the right. -->
+  <div class="pills" role="tablist" aria-label="About Greeo">
+    @for (section of sections; track section.key; let i = $index) {
+      <button
+        type="button"
+        role="tab"
+        class="pill"
+        [id]="'about-tab-' + section.key"
+        [attr.aria-selected]="current() === i"
+        [attr.aria-controls]="'about-page-' + section.key"
+        (click)="show(i)"
+      >
+        <span class="knob" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path [attr.d]="icons[section.icon]" /></svg>
+        </span>
+        <span class="pill-label">{{ section.label }}</span>
+      </button>
+    }
+  </div>
+
+  @for (section of sections; track section.key; let i = $index) {
+    @if (current() === i) {
+      <div
+        class="tiles"
+        role="tabpanel"
+        [id]="'about-page-' + section.key"
+        [attr.aria-labelledby]="'about-tab-' + section.key"
+      >
+        @for (tile of section.tiles; track tile.title) {
+          <article class="tile">
+            <svg class="tile-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path [attr.d]="icons[tile.icon]" />
+            </svg>
+            <div>
+              <h3>{{ tile.title }}</h3>
+              <p>{{ tile.text }}</p>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  }
+
+  <div class="dots">
+    @for (section of sections; track section.key; let i = $index) {
+      <button
+        type="button"
+        class="dot"
+        [class.on]="current() === i"
+        [attr.aria-label]="'Show ' + section.label"
+        (click)="show(i)"
+      ></button>
+    }
+  </div>
+</section>

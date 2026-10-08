@@ -51,7 +51,7 @@ During the vertical-slice phase, one human-curated real event is the golden test
 7. Spoken text is at most 75 words per reply (about 30 seconds), presents at most 5 options, and avoids technical words. A tale is delivered in beats.
 8. Identity comes from the request authentication, never from a tool argument. Every memory query filters by user.
 9. Every fact, context item, and perspective links to evidence.
-10. Never describe scripted behaviour as LLM behaviour. Traces record `host_mode = mock | llm`.
+10. Never describe scripted behaviour as LLM behaviour. Traces record `host_mode = mock | llm | strands | tap | auto` (tap: the listener tapped a story on screen; auto: Greeo carried on with its own tale; in both, no host chose).
 11. No prototype code is used. `docs/notes/prior-prototype.md` describes the earlier web prototype for context only; do not recreate its patterns where they conflict with these rules (for example, a model writing proverb text itself, or unattributed proverbs).
 12. “Griot” is a specific cultural/historical tradition, not a synonym for all African storytelling. Product copy says Greeo is inspired by African oral storytelling traditions; use “griot” only as a specific influence where culturally appropriate and supported by the style guide.
 13. A moral/reflection may express a broad human theme, but must not judge a real political actor, organisation, community, disputed claim, or side as right/wrong; infer motives; or turn a contested event into a lesson unsupported by evidence. For sensitive or contentious events, prefer a neutral reflection or omit it.

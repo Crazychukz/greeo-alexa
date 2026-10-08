@@ -1,0 +1,21 @@
+@if (reducedMotion) {
+  <img [src]="still()" alt="" />
+} @else {
+  @for (clip of clips; track clip) {
+    <video
+      [attr.data-clip]="clip"
+      [class.active]="clip === showing()"
+      [src]="'/mbe/' + clip + '.' + extension"
+      [muted]="true"
+      [loop]="isLoop(clip)"
+      [defaultPlaybackRate]="isLoop(clip) ? speed() : 1"
+      [playbackRate]="isLoop(clip) ? speed() : 1"
+      [autoplay]="clip === showing()"
+      playsinline
+      preload="auto"
+      aria-hidden="true"
+      (ended)="transitionEnded(clip)"
+    ></video>
+  }
+  <img class="rest" [class.active]="showing() === rest" [src]="seatedStill" alt="" />
+}

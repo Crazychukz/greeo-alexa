@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Protocol
 
 import redis
@@ -26,6 +26,9 @@ class SessionState:
     last_stories: list[dict[str, str]] = field(default_factory=list)
     # The listing call behind them, so "more stories" can ask for the next page.
     last_listing: dict[str, Any] | None = None
+    # The beat a bare "continue" should play next, for listeners Greeo cannot remember
+    # (guests): Alexa+ keeps this conversational context itself, so the host does too.
+    next_beat: int | None = None
     # Plain user/assistant text turns for the LLM host; tool traffic is not kept.
     messages: list[dict[str, Any]] = field(default_factory=list)
 
@@ -35,6 +38,23 @@ class SessionState:
             {"role": "assistant", "content": [{"text": replied}]},
         ]
         self.messages = self.messages[-MAX_HISTORY_MESSAGES:]
+
+    def context_note(self) -> str:
+        """What is on screen, for a model host: the ids behind "the second one" or "continue".
+
+        Alexa+ keeps earlier tool results in the conversation; history here is plain text,
+        so the model is told the listed stories and the story being heard, with their ids.
+        """
+        notes = []
+        if self.last_stories:
+            listed = "; ".join(
+                f"{n}. {item['title']} (story_id {item['story_id']})"
+                for n, item in enumerate(self.last_stories, start=1)
+            )
+            notes.append(f"Stories listed on screen: {listed}.")
+        if self.last_story_id:
+            notes.append(f"Story being heard: story_id {self.last_story_id}.")
+        return "\n\n[Conversation context] " + " ".join(notes) if notes else ""
 
 
 class KeyValueStore(Protocol):
@@ -61,7 +81,10 @@ class SessionStore:
         except redis.RedisError:
             logger.warning("Simulator session store unavailable.", exc_info=True)
             return SessionState()
-        return SessionState(**json.loads(raw)) if raw else SessionState()
+        if not raw:
+            return SessionState()
+        known = {f.name for f in fields(SessionState)}
+        return SessionState(**{k: v for k, v in json.loads(raw).items() if k in known})
 
     def save(self, session_id: str, state: SessionState) -> None:
         try:

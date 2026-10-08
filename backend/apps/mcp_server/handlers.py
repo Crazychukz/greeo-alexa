@@ -21,7 +21,7 @@ from apps.stories.models import Story, StoryContext, StoryTelling
 from apps.wisdom.rendering import RenderingError, render_beat
 
 from . import schemas
-from .voice import friendly_error, human_date, join_within, options, paginate
+from .voice import friendly_error, human_date, join_within, options, paginate, spoken_dates
 
 PAGE_SIZE = 5
 CONTEXT_LABELS = {
@@ -215,7 +215,7 @@ def get_briefing(
     """Recent stories, in the listener's preferred region when they have one."""
     preferred = memory.get_preferences(user).regions if user else []
     chosen_region = region or (preferred[0] if preferred else None)
-    stories = published_stories()
+    stories = published_stories().filter(is_demo=False)  # the news, not the demo stories
     if chosen_region:
         stories = stories.filter(region__icontains=chosen_region.strip())
     stories = list(stories.order_by("-published_at")[: PAGE_SIZE * 10])
@@ -229,8 +229,66 @@ def get_briefing(
     return _story_page(user, stories, page, found=None)
 
 
+def get_demo_stories(user: EndUser | None, *, page: int = 1) -> schemas.StoryList:
+    """Behind the scenes: tales about how Greeo was built. Not news, so never in a briefing."""
+    stories = list(
+        published_stories().filter(is_demo=True).order_by("-published_at")[: PAGE_SIZE * 10]
+    )
+    if not stories:
+        raise FriendlyError(
+            "no_results",
+            "I don't have any behind-the-scenes stories yet. You could hear today's stories.",
+            ["today's stories"],
+        )
+    return _story_page(
+        user, stories, page, found=None, intro="Here are my behind-the-scenes stories:"
+    )
+
+
+ABILITIES = [
+    "today's stories",
+    "stories on a topic",
+    "tales in a light, balanced or serious tone",
+    "proverbs explained",
+    "facts, background, perspectives and sources",
+    "saved stories and where you stopped",
+    "behind-the-scenes stories",
+]
+
+
+def get_help(user: EndUser | None) -> schemas.HelpResult:
+    """What Greeo can do, starting from where the listener is (Alexa+ onboarding rule)."""
+    last = memory.get_session_context(user).last_story_id if user else None
+    current = published_stories().filter(pk=last).first() if last else None
+    sentences = ["I retell the news as short spoken tales, with a proverb where one fits."]
+    if current is not None:
+        sentences.append(f"You were hearing {current.handle}. Say continue to pick it up.")
+    sentences += [
+        "Ask for today's stories, or name a topic.",
+        "After a tale, ask what the proverb means, or for the facts, the background, "
+        "other views or the sources.",
+        "You can choose a light, balanced or serious telling, save a story for later, "
+        "or hear how I was built.",
+    ]
+    next_options = options(
+        *(["continue"] if current is not None else []), "today's stories", "behind the scenes"
+    )
+    return schemas.HelpResult(
+        spoken=join_within(sentences, more="Ask me for more ideas any time."),
+        next_options=next_options,
+        abilities=ABILITIES,
+        current_story_id=current.pk if current else None,
+        current_title=current.handle if current else None,
+    )
+
+
 def _story_page(
-    user: EndUser | None, stories: list[Story], page: int, *, found: str | None
+    user: EndUser | None,
+    stories: list[Story],
+    page: int,
+    *,
+    found: str | None,
+    intro: str | None = None,
 ) -> schemas.StoryList:
     result = paginate(stories, page, PAGE_SIZE)
     chunk, has_more = result.items, result.has_more
@@ -239,7 +297,9 @@ def _story_page(
             "no_more_results", "That's all the stories I have for now.", ["today's stories"]
         )
     titles = [story.handle for story in chunk]
-    intro = f"Here's what I found about {found}:" if found else "Here are today's stories:"
+    intro = intro or (
+        f"Here's what I found about {found}:" if found else "Here are today's stories:"
+    )
     sentences = [intro, *(f"{title}." for title in titles), "Which one would you like to hear?"]
     spoken = join_within(sentences, more="Which one would you like to hear?")
     next_options = options(*titles[:4], result.next_page_hint)
@@ -452,10 +512,13 @@ def _people(culture: str) -> str:
 def get_facts(user: EndUser | None, *, story_id: str | None = None) -> schemas.FactList:
     story = resolve_story(user, story_id)
     facts = list(story.facts.prefetch_related("articles__source"))
-    items = [schemas.FactItem(text=fact.text, sources=_refs(fact.articles.all())) for fact in facts]
+    items = [
+        schemas.FactItem(text=spoken_dates(fact.text), sources=_refs(fact.articles.all()))
+        for fact in facts
+    ]
     publishers = _publishers(fact.articles.all() for fact in facts)
     attribution = f"Reported by {_spoken_list(publishers)}." if publishers else ""
-    spoken = join_within([fact.text for fact in facts], more="There's more if you'd like it.")
+    spoken = join_within([item.text for item in items], more="There's more if you'd like it.")
     next_options = explore(user, story, "facts", "the background", "the sources")
     return schemas.FactList(
         spoken=f"{spoken} {attribution}".strip(),
@@ -472,7 +535,7 @@ def get_context(user: EndUser | None, *, story_id: str | None = None) -> schemas
         schemas.ContextItem(
             kind=row.kind,
             label=CONTEXT_LABELS.get(row.kind, "Context"),
-            text=row.text,
+            text=spoken_dates(row.text),
             sources=_refs(row.articles.all()),
         )
         for row in rows
@@ -499,7 +562,9 @@ def get_perspectives(
     rows = list(story.perspectives.prefetch_related("articles__source"))
     items = [
         schemas.PerspectiveItem(
-            label=row.label, summary=row.summary, sources=_refs(row.articles.all())
+            label=row.label,
+            summary=spoken_dates(row.summary),
+            sources=_refs(row.articles.all()),
         )
         for row in rows
     ]

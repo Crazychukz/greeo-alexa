@@ -145,3 +145,18 @@ def finalize[EnvelopeT: Envelope](result: EnvelopeT, *, verbatim: bool = False) 
 def human_date(value: datetime | None) -> str:
     """A spoken-friendly date such as 12 March 2026."""
     return f"{value.day} {value:%B %Y}" if value else "an unknown date"
+
+
+ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+
+
+def spoken_dates(text: str) -> str:
+    """2026-10-07 becomes 7 October 2026: facts are read aloud, and shown the same way."""
+
+    def readable(match: re.Match[str]) -> str:
+        try:
+            return human_date(datetime(int(match[1]), int(match[2]), int(match[3])))
+        except ValueError:
+            return match[0]  # not a real date (a version number, say): leave it
+
+    return ISO_DATE.sub(readable, text)

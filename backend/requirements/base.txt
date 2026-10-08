@@ -8,5 +8,8 @@ pydantic==2.13.5
 boto3==1.43.101
 httpx==0.28.1
 feedparser==6.0.14
-mcp==2.2.0
+# 2.1.1, not 2.2: strands-agents 1.58 requires mcp<2.2 (full suite verified on 2.1.1).
+mcp==2.1.1
+# Strands Agents SDK: the simulator's agent host (SIMULATOR_HOST=strands).
+strands-agents==1.58.1
 django-cors-headers==4.9.0

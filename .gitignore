@@ -11,6 +11,8 @@ htmlcov/
 staticfiles/
 docs/walkthroughs/
 AGENT_PROMPTS.md
+# Private submission working notes (video script, Veo prompts).
+docs/VIDEO_SCRIPT.md
 .DS_Store
 .idea/
 celerybeat-schedule

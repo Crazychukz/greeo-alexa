@@ -1,0 +1,253 @@
+// Styled after the Echo Show quick-settings panel: a translucent slate sheet over the
+// screen, soft rounded tiles, pill switches and round icon buttons.
+:host {
+  --sheet: rgb(52 57 68 / 0.98);
+  --tile: rgb(255 255 255 / 0.09);
+  --tile-hover: rgb(255 255 255 / 0.14);
+  --round: rgb(255 255 255 / 0.14);
+  --text: #eceef2;
+  --muted: #b6bac4;
+  --blue: var(--switch-on, #3d6fe0);
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 3%;
+  font-family: var(--sans);
+  color: var(--text);
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(4 8 19 / 0.55);
+  animation: fade-in 200ms ease both;
+}
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-height: 100%;
+  padding: 20px 22px 14px;
+  border-radius: 28px;
+  background: var(--sheet);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 24px 48px -16px rgb(0 0 0 / 0.7);
+  overflow: auto;
+  animation: rise-in 260ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+}
+
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+
+  h2 {
+    margin: 0;
+    font: 700 22px var(--sans);
+  }
+}
+
+.tagline {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+// Round icon button, like "Edit Home" and "Settings".
+.round {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--round);
+  color: var(--text);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--tile-hover);
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+  }
+}
+
+// Pill switches, like "Camera": blue with the knob right when this page is open.
+.pills {
+  display: flex;
+  gap: 12px;
+}
+
+.pill {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 48px;
+  padding: 6px 16px 6px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tile);
+  color: var(--text);
+  font: 600 15px var(--sans);
+  cursor: pointer;
+  transition: background-color 200ms ease;
+
+  &:hover {
+    background: var(--tile-hover);
+  }
+
+  &[aria-selected='true'],
+  &[aria-pressed='true'] {
+    flex-direction: row-reverse;
+    padding: 6px 6px 6px 16px;
+    background: var(--blue);
+
+    .knob {
+      background: #e4e6ea;
+      color: #1d2230;
+    }
+  }
+}
+
+.pill-label {
+  flex: 1;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knob {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.16);
+  color: var(--text);
+
+  svg {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+// Tiles, like "Music & More": an icon and a name, here with a line of detail.
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  animation: fade-in 220ms ease both;
+}
+
+.tile {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--tile);
+
+  h3 {
+    margin: 0 0 4px;
+    font: 600 15px var(--sans);
+  }
+
+  p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+  }
+}
+
+.tile-icon {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+// Page dots: the open page is a wider pill.
+.dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.35);
+  cursor: pointer;
+  transition: width 200ms ease;
+
+  &.on {
+    width: 26px;
+    background: #e4e6ea;
+  }
+}
+
+button:focus-visible {
+  outline: 3px solid var(--fire, #e8a33d);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrim,
+  .panel,
+  .tiles {
+    animation: none;
+  }
+}

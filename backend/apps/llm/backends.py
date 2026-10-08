@@ -83,7 +83,7 @@ class MockLLM:
             "closing_text": "SYNTHETIC REFLECTION: no real-world lesson.",
             "synthetic": True,
         },
-        "check_telling": {"valid": True, "issues": [], "synthetic": True},
+        "check_telling": {"reasoning": "SYNTHETIC: no real-world check.", "issues": []},
         "revise_telling": {
             "beats": ["SYNTHETIC REVISED BEAT: no real-world content."],
             "synthetic": True,

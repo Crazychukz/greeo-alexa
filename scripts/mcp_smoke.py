@@ -25,6 +25,8 @@ from mcp.client.streamable_http import streamable_http_client
 EXPECTED_TOOLS = {
     "search_events",
     "get_briefing",
+    "get_demo_stories",
+    "get_help",
     "tell_tale",
     "get_moral",
     "explain_proverb",
@@ -64,11 +66,16 @@ async def main(url: str, user: str) -> None:
             briefing = show("get_briefing", await client.call_tool("get_briefing", {}))
             expect(bool(briefing.get("stories")), "briefing returned no stories; run make seed")
 
-            found = show(
-                "search_events", await client.call_tool("search_events", {"query": "footbridge"})
-            )
-            expect(bool(found.get("stories")), "search did not find the seeded event")
-            story_id = found["stories"][0]["story_id"]
+            # Search for a word from the first listed story: works on seeded or real news.
+            first = briefing["stories"][0]
+            query = max(first["title"].split(), key=len).strip(".,:;'\"")
+            found = show("search_events", await client.call_tool("search_events", {"query": query}))
+            expect(bool(found.get("stories")), f"search for {query!r} found nothing")
+            story_id = first["story_id"]
+
+            helped = show("get_help", await client.call_tool("get_help", {}))
+            expect(bool(helped.get("abilities")), "get_help listed nothing")
+            show("get_demo_stories", await client.call_tool("get_demo_stories", {}))
 
             beat, has_more = 1, True
             while has_more:

@@ -33,6 +33,7 @@ from .mcp_link import (
 )
 from .mock_host import MockHost
 from .state import SessionState, SessionStore
+from .strands_host import StrandsHost
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +92,11 @@ class TurnResult:
 
 
 def configured_host() -> Host:
-    """Mock backend means the scripted router; anything else means a model chooses tools."""
-    return MockHost() if settings.LLM_BACKEND == "mock" else LLMHost()
+    """SIMULATOR_HOST picks the host; unset, mock follows the mock backend, else our loop."""
+    choice = settings.SIMULATOR_HOST or ("mock" if settings.LLM_BACKEND == "mock" else "llm")
+    if choice == "strands":
+        return StrandsHost()
+    return MockHost() if choice == "mock" else LLMHost()
 
 
 def run_turn(
@@ -103,15 +107,23 @@ def run_turn(
     host: Host | None = None,
     connector: Connector | None = None,
     store: SessionStore | None = None,
+    story_id: str | None = None,
+    follow_up: str | None = None,
 ) -> TurnResult:
-    """Handle one thing the listener said and return what to speak and show."""
+    """Handle one thing the listener said and return what to speak and show.
+
+    With a story_id, the listener tapped that story on screen: it is told straight away,
+    as Alexa+ does for a tapped item, without asking the model which story was meant.
+    With a follow_up as well, Greeo is carrying on with its own tale (the next part, or
+    the closing thought): the app knows exactly what comes next, so no model is asked.
+    """
     host = host or configured_host()
     store = store or SessionStore()
     started = time.monotonic()
     state = store.load(session_id)
     try:
         outcomes, reply = async_to_sync(_converse)(
-            host, connector or connect, credentials, text, state
+            host, connector or connect, credentials, text, state, story_id, follow_up
         )
         failure = ""
     except Exception as error:  # Model trouble, MCP unreachable: never a stack trace.
@@ -131,27 +143,113 @@ def run_turn(
             outcomes, reply, failure = [], UNREACHABLE, str(error)
 
     spoken = _spoken(outcomes, reply)
+    # A tapped story, or Greeo carrying on by itself, needs no host to choose.
+    mode = ("auto" if follow_up else "tap") if story_id else host.mode
     _remember(state, outcomes, text, spoken)
     store.save(session_id, state)
     result = TurnResult(
         spoken=spoken,
-        host_mode=host.mode,
+        host_mode=mode,
         display=_display(outcomes),
         tool_trace=[outcome.trace() for outcome in outcomes],
     )
-    _trace(host.mode, text, result, started, failure)
+    _trace(mode, text, result, started, failure)
     return result
 
 
 async def _converse(
-    host: Host, connector: Connector, credentials: Credentials, text: str, state: SessionState
+    host: Host,
+    connector: Connector,
+    credentials: Credentials,
+    text: str,
+    state: SessionState,
+    story_id: str | None = None,
+    follow_up: str | None = None,
 ) -> tuple[list[ToolOutcome], str | None]:
     async with connector(credentials) as link:
+        context = ContextLink(link, state, guest=not credentials)
+        if story_id:
+            # A tap or Greeo's own follow-up names the story: trusted, not a model's guess.
+            tool = "get_moral" if follow_up == "closing" else "tell_tale"
+            return [await context.call(tool, {"story_id": story_id}, trusted=True)], None
         try:
-            return await host.run(link, text, state)
+            return await host.run(context, text, state)
         except LLMError as error:
             # Caught here: outside the connection it would arrive wrapped in a task group.
             raise ModelTrouble(str(error)) from None
+
+
+# Tools that act on one story: with no story named, they mean the conversation's story.
+STORY_TOOLS = {
+    "tell_tale",
+    "get_moral",
+    "explain_proverb",
+    "get_facts",
+    "get_context",
+    "get_perspectives",
+    "get_sources",
+    "save_for_later",
+}
+
+
+class ContextLink:
+    """The MCP link, plus the conversational context Alexa+ would keep for the add-on.
+
+    A story tool called without a story gets the conversation's current story, and for a
+    guest (whom Greeo cannot remember) a bare tell_tale continues at the next beat. Both
+    hosts go through this, and the tool trace shows the arguments actually sent.
+    """
+
+    def __init__(self, link: Any, state: SessionState, *, guest: bool) -> None:
+        self.link = link
+        self.state = state
+        self.guest = guest
+        self.told: ToolOutcome | None = None  # this turn's beat, if one was told
+        self.seen: set[str] = set()  # story ids the tools returned during this turn
+
+    async def tools(self) -> list[dict[str, Any]]:
+        return await self.link.tools()
+
+    async def call(
+        self, name: str, arguments: dict[str, Any], *, trusted: bool = False
+    ) -> ToolOutcome:
+        args = dict(arguments)
+        current = self.state.last_story_id
+        guessed = args.get("story_id") and args["story_id"] not in self._known_story_ids()
+        if name in STORY_TOOLS and current and guessed and not trusted:
+            # Seen live: the model sees only plain text from earlier turns, never their
+            # story ids, so an id no tool gave it is a guess. Use the conversation's story.
+            args.pop("story_id")
+        if name in STORY_TOOLS and not args.get("story_id") and current:
+            args["story_id"] = current
+        if name == "tell_tale" and self.told is not None:
+            return self.told  # one beat per turn: a repeat gets the beat already fetched
+        if name == "tell_tale" and self.guest and args.get("story_id") == current:
+            expected = self.state.next_beat or 1
+            beat = args.get("beat")
+            if beat is None or beat > expected:
+                # Continue where the guest is; never skip a beat they have not heard.
+                args["beat"] = expected
+        outcome = await self.link.call(name, args)
+        if name == "tell_tale" and outcome.ok:
+            self.told = outcome
+        self.seen |= _story_ids(outcome.structured)
+        return outcome
+
+    def _known_story_ids(self) -> set[str]:
+        """Story ids this conversation has actually been given: listed, or being heard."""
+        known = {item["story_id"] for item in self.state.last_stories} | self.seen
+        if self.state.last_story_id:
+            known.add(self.state.last_story_id)
+        return known
+
+
+def _story_ids(structured: dict[str, Any]) -> set[str]:
+    """The story ids a tool result handed out: its own, and any it listed."""
+    ids = {item["story_id"] for item in structured.get("stories", []) if "story_id" in item}
+    if structured.get("story_id"):
+        ids.add(structured["story_id"])
+    return ids
 
 
 def _spoken(outcomes: list[ToolOutcome], reply: str | None) -> str:
@@ -183,9 +281,19 @@ def _remember(state: SessionState, outcomes: list[ToolOutcome], said: str, spoke
         if outcome.tool == "set_preferences" and outcome.structured.get("reset"):
             state.last_story_id, state.last_stories, state.last_listing = None, [], None
             state.messages = []
-        if outcome.structured.get("story_id"):
-            state.last_story_id = outcome.structured["story_id"]
+        story_id = outcome.structured.get("story_id")
+        if story_id:
+            if story_id != state.last_story_id:
+                state.next_beat = None  # a different story starts from its beginning
+            state.last_story_id = story_id
+        if outcome.tool == "tell_tale" and outcome.structured.get("beat"):
+            has_more = outcome.structured.get("has_more")
+            state.next_beat = outcome.structured["beat"] + 1 if has_more else None
         if "stories" in outcome.structured and outcome.tool != "get_saved_stories":
+            listed = outcome.structured["stories"]
+            if len(listed) == 1 and listed[0]["story_id"] != state.last_story_id:
+                # One match: that is the story the listener means by "continue".
+                state.last_story_id, state.next_beat = listed[0]["story_id"], None
             state.last_stories = [
                 {"story_id": item["story_id"], "title": item["title"]}
                 for item in outcome.structured["stories"]

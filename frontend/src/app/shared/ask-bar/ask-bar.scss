@@ -1,0 +1,90 @@
+// Scaffold styling: functional and quiet; restyle freely.
+.ask {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.1);
+}
+
+input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 4px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font: 15px var(--sans);
+  outline: none;
+
+  &::placeholder {
+    color: rgb(255 255 255 / 0.5);
+  }
+}
+
+.mic,
+.send {
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.mic {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  background: rgb(255 255 255 / 0.12);
+
+  svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: #fff;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+
+  &.on {
+    background: var(--ember);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    box-shadow: 0 0 0 6px rgb(232 121 74 / 0.25);
+  }
+}
+
+.problem {
+  margin: 6px 4px 0;
+  color: #ffd2b8;
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mic.on {
+    animation: none;
+  }
+}
+
+.send {
+  padding: 8px 14px;
+  background: var(--fire);
+  color: var(--on-fire);
+  font: 600 14px var(--sans);
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}

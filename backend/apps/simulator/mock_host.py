@@ -12,10 +12,6 @@ import re
 from .mcp_link import McpLink, ToolOutcome
 from .state import SessionState
 
-HELP_TEXT = (
-    "I tell today's news as short tales, with a proverb where one fits. Ask for today's "
-    "stories or name a topic, then ask for the facts, the background or the sources."
-)
 TONE_WORDS = {
     "serious": "serious",
     "lighter": "light",
@@ -104,7 +100,9 @@ class MockHost:
         elif has(said, "what was i listening", "saved stor", "my stories", "where did i stop"):
             await call("get_saved_stories")
         elif has(said, "what can you do", "help"):
-            return outcomes, HELP_TEXT
+            await call("get_help")
+        elif has(said, "behind the scenes", "demo stor", "how you were built"):
+            await call("get_demo_stories")
         elif has(said, "go on", "continue", "what happened next", "keep going", "carry on"):
             await call("tell_tale", story_id=story)
         elif has(said, "from the beginning", "start the tale", "tell it again"):

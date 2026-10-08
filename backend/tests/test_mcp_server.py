@@ -28,6 +28,8 @@ FIXTURE = Path(settings.BASE_DIR).parent / "data" / "demo_event.synthetic.yaml"
 TOOL_NAMES = {
     "search_events",
     "get_briefing",
+    "get_demo_stories",
+    "get_help",
     "tell_tale",
     "get_moral",
     "explain_proverb",
@@ -112,7 +114,7 @@ GOOD_HEADERS = {"Accept": "application/json, text/event-stream"}
 # Protocol and transport -------------------------------------------------------------------
 
 
-def test_tool_list_has_all_twelve_tools_with_valid_schemas() -> None:
+def test_tool_list_has_all_fourteen_tools_with_valid_schemas() -> None:
     tools = run_client(lambda client: client.list_tools()).tools
 
     assert {tool.name for tool in tools} == TOOL_NAMES
@@ -192,6 +194,49 @@ def test_briefing_lists_recent_stories_and_filters_by_region(story: Story) -> No
 
     assert [s["story_id"] for s in result.structured_content["stories"]] == [story.pk]
     assert missing.is_error and missing.structured_content["error"] == "no_results"
+
+
+def test_demo_stories_are_listed_by_voice_but_never_as_news(story: Story) -> None:
+    story.is_demo = True
+    story.save(update_fields=["is_demo"])
+
+    listed = call("get_demo_stories", {})
+    briefing = call("get_briefing", {})
+
+    assert [s["story_id"] for s in listed.structured_content["stories"]] == [story.pk]
+    assert listed.structured_content["spoken"].startswith("Here are my behind-the-scenes stories:")
+    assert briefing.is_error and briefing.structured_content["error"] == "no_results"
+    assert_voice_safe(listed)
+
+
+def test_no_demo_stories_suggests_today_s_stories(story: Story) -> None:
+    result = call("get_demo_stories", {})
+
+    assert result.is_error and result.structured_content["error"] == "no_results"
+    assert result.structured_content["next_options"] == ["today's stories"]
+
+
+def test_help_says_what_greeo_can_do(story: Story) -> None:
+    result = call("get_help", {})
+
+    assert not result.is_error
+    assert "short spoken tales" in result.structured_content["spoken"]
+    assert result.structured_content["current_story_id"] is None
+    assert "behind the scenes" in result.structured_content["next_options"]
+    assert_voice_safe(result)
+
+
+def test_help_starts_from_the_tale_the_listener_can_continue(story: Story) -> None:
+    async def work(client):
+        await client.call_tool("tell_tale", {"story_id": story.pk, "beat": 1})
+        return await client.call_tool("get_help", {})
+
+    result = run_client(work)
+
+    assert result.structured_content["current_story_id"] == story.pk
+    assert f"You were hearing {story.handle}" in result.structured_content["spoken"]
+    assert result.structured_content["next_options"][0] == "continue"
+    assert_voice_safe(result)
 
 
 # The tale -----------------------------------------------------------------------------------
@@ -589,3 +634,16 @@ def test_no_tool_calls_an_llm(story: Story, monkeypatch) -> None:
         return results
 
     assert not any(result.is_error for result in run_client(flow))
+
+
+def test_dates_in_facts_are_spoken_as_words(story: Story) -> None:
+    fact = story.facts.first()
+    fact.text = "SYNTHETIC. The bridge opened on 2026-03-12, version 2025-13-40 aside."
+    fact.save(update_fields=["text"])
+
+    result = call("get_facts", {"story_id": story.pk})
+
+    first = result.structured_content["facts"][0]["text"]
+    assert "12 March 2026" in first and "2026-03-12" not in first
+    assert "2025-13-40" in first  # not a real date: left alone
+    assert "12 March 2026" in result.structured_content["spoken"]
